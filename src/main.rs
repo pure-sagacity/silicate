@@ -103,6 +103,11 @@ enum Command {
         #[clap(subcommand)]
         command: TagCommand,
     },
+
+    List {
+        #[clap(long, short = 't')]
+        tag: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -898,6 +903,50 @@ fn main() {
                     }
                 }
             },
+            Command::List { tag } => {
+                let websites =
+                    silicate::list_passwords(&config_dir()).expect("Failed to list passwords.");
+                if websites.is_empty() {
+                    println!("{}", "No passwords stored yet.".yellow());
+                } else {
+                    println!("Stored passwords for the following websites:");
+
+                    if let Some(tag) = tag {
+                        println!(
+                            "{}",
+                            format!("Filtering: {}", tag.italic().green()).dimmed()
+                        );
+                    }
+
+                    let websites = if let Some(tag) = tag {
+                        websites
+                            .into_iter()
+                            .filter(|site| site.ends_with(&format!("-{}", tag)))
+                            .collect()
+                    } else {
+                        websites
+                    };
+
+                    for site in websites {
+                        let (site, tag) = if let Some((s, t)) = site.split_once('-') {
+                            (s.to_string(), Some(t.to_string()))
+                        } else {
+                            (site, None)
+                        };
+                        if let Some(tag) = tag {
+                            let tag = tag.dimmed().italic();
+                            println!("{}", format!("- ({}) {}", tag, site.green().bold()));
+                        } else {
+                            println!("{}", format!("- {}", site.green().bold()));
+                        }
+                    }
+
+                    println!(
+                        "{}",
+                        "Use `silicate show <website>` to view a password.".dimmed()
+                    );
+                }
+            }
         },
         None => {
             let websites =
@@ -914,9 +963,9 @@ fn main() {
                     };
                     if let Some(tag) = tag {
                         let tag = tag.dimmed().italic();
-                        println!("{}", format!("- ({}) {}", tag, site));
+                        println!("{}", format!("- ({}) {}", tag, site.green().bold()));
                     } else {
-                        println!("{}", format!("- {}", site));
+                        println!("{}", format!("- {}", site.green().bold()));
                     }
                 }
 
