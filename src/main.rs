@@ -171,7 +171,11 @@ fn get_key() -> Vec<u8> {
                     if t {
                         let salt = fs::read(config_dir() + "salt.bin").unwrap();
                         let password = get_password("Enter password to derive key: ");
-                        let key = derive_key_from_password(&password, &salt.try_into().unwrap());
+                        let key = derive_key_from_password(
+                            &password,
+                            &salt.try_into().expect("Failed to convert salt."),
+                        )
+                        .expect("Failed to derive key.");
                         return key.to_vec();
                     } else {
                         let msg = format!(
@@ -256,9 +260,9 @@ fn main() {
                     let passwords = silicate::list_passwords(&config_dir());
 
                     // Find if any entry matches 'website' or starts with 'website-'
-                    let target_file = passwords
-                        .iter()
-                        .find(|p| **p == *website || p.starts_with(&format!("{}-", website)));
+                    let target_file = passwords.unwrap().into_iter().find(|filename| {
+                        filename == website || filename.starts_with(&format!("{}-", website))
+                    });
 
                     match target_file {
                         Some(filename) => {
@@ -362,7 +366,8 @@ fn main() {
                     }
 
                     let password = get_password("Enter a password to derive the encryption key: ");
-                    let (_, salt) = generate_fallback_key(&password);
+                    let (_, salt) =
+                        generate_fallback_key(&password).expect("Failed to generate fallback key.");
 
                     create_dir();
                     fs::write(config_dir() + "salt.bin", &salt).unwrap();
@@ -483,7 +488,9 @@ fn main() {
                 }
             }
             Command::Update { website } => {
-                if let Some(path) = find_password_file(&config_dir(), website) {
+                if let Some(path) = find_password_file(&config_dir(), website)
+                    .expect("Failed to find the password to update.")
+                {
                     let key: &[u8; 32] = &get_key().as_slice().try_into().unwrap();
                     let new_password = get_password("Enter the new password: ");
 
@@ -510,7 +517,11 @@ fn main() {
                         Err(e) => eprintln!("Failed to export key: {}", e),
                     }
                 } else {
-                    let secrets = json::get_secrets(&config_dir(), list_passwords(&config_dir()));
+                    let secrets = json::get_secrets(
+                        &config_dir(),
+                        list_passwords(&config_dir()).expect("Failed to get passwords."),
+                    )
+                    .expect("Failed to get secrets from passwords.");
 
                     json::export_secrets(secrets, &file_path);
                 }
@@ -522,14 +533,16 @@ fn main() {
                         Err(e) => eprintln!("Failed to import key: {}", e),
                     }
                 } else {
-                    let secrets = json::import_secrets(file_path.to_string());
+                    let secrets = json::import_secrets(file_path.to_string())
+                        .expect("Failed to import secrets from JSON file.");
 
                     json::write_secrets(&config_dir(), secrets);
                 }
             }
         },
         None => {
-            let websites = silicate::list_passwords(&config_dir());
+            let websites =
+                silicate::list_passwords(&config_dir()).expect("Failed to list passwords.");
             if websites.is_empty() {
                 println!("{}", "No passwords stored yet.".yellow());
             } else {
