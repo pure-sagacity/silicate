@@ -56,7 +56,7 @@ enum Command {
     },
 
     Generate {
-        website: String,
+        website: Option<String>,
 
         #[clap(long, short = 't')]
         tag: Option<String>,
@@ -604,55 +604,91 @@ fn main() {
 
                 let password = silicate::generate_password(length, symbols);
 
-                let key = get_key();
+                if let Some(website) = website {
+                    let key = get_key();
 
-                let (cipher_bytes, nonce_bytes) =
-                    encrypt_passwd(&key.try_into().unwrap(), password.clone()).unwrap();
+                    let (cipher_bytes, nonce_bytes) =
+                        encrypt_passwd(&key.try_into().unwrap(), password.clone()).unwrap();
 
-                if let Some(tag) = tag {
-                    fs::write(
-                        format!("{}{}-{}.bin", config_dir(), website, tag),
-                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
-                    )
-                    .unwrap();
-                } else {
-                    fs::write(
-                        format!("{}{}.bin", config_dir(), website),
-                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
-                    )
-                    .unwrap();
-                }
-
-                if *display {
-                    let msg = format!("Generated password for {}: {}", website, password.bold());
-                    println!("{}", msg);
-                } else {
-                    // Copy to clipboard
-                    let mut clipboard = match arboard::Clipboard::new() {
-                        Ok(c) => c,
-                        Err(e) => {
-                            println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
-                            write_to_logs(&format!("Failed to access clipboard: {}", e));
-                            return;
-                        }
-                    };
-                    match clipboard.set_text(password) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
-                            write_to_logs(&format!("Failed to copy password to clipboard: {}", e));
-                            return;
-                        }
+                    if let Some(tag) = tag {
+                        fs::write(
+                            format!("{}{}-{}.bin", config_dir(), website, tag),
+                            [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                        )
+                        .unwrap();
+                    } else {
+                        fs::write(
+                            format!("{}{}.bin", config_dir(), website),
+                            [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                        )
+                        .unwrap();
                     }
 
-                    println!("{}", "Generated password copied to clipboard.".green());
+                    if *display {
+                        let msg =
+                            format!("Generated password for {}: {}", website, password.bold());
+                        println!("{}", msg);
+                    } else {
+                        // Copy to clipboard
+                        let mut clipboard = match arboard::Clipboard::new() {
+                            Ok(c) => c,
+                            Err(e) => {
+                                println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                write_to_logs(&format!("Failed to access clipboard: {}", e));
+                                return;
+                            }
+                        };
+                        match clipboard.set_text(password) {
+                            Ok(_) => (),
+                            Err(e) => {
+                                println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                write_to_logs(&format!(
+                                    "Failed to copy password to clipboard: {}",
+                                    e
+                                ));
+                                return;
+                            }
+                        }
 
-                    let msg = format!(
-                        "To show the generated password, use `silicate show {} --display`",
-                        website
-                    );
+                        println!("{}", "Generated password copied to clipboard.".green());
 
-                    println!("{}", msg.dimmed());
+                        let msg = format!(
+                            "To show the generated password, use `silicate show {} --display`",
+                            website
+                        );
+
+                        println!("{}", msg.dimmed());
+                    }
+                } else {
+                    if *display {
+                        let msg = "Generated password:".dimmed();
+                        println!("{msg} {}", password.bold().green());
+                    } else {
+                        // Copy to clipboard
+                        let mut clipboard = match arboard::Clipboard::new() {
+                            Ok(c) => c,
+                            Err(e) => {
+                                println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                write_to_logs(&format!("Failed to access clipboard: {}", e));
+                                return;
+                            }
+                        };
+                        match clipboard.set_text(password) {
+                            Ok(_) => (),
+                            Err(e) => {
+                                println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                write_to_logs(&format!(
+                                    "Failed to copy password to clipboard: {}",
+                                    e
+                                ));
+                                return;
+                            }
+                        }
+
+                        println!("{}", "Generated password copied to clipboard.".green());
+
+                        println!("{}", "To show the generated password again, use `silicate generate --display`".dimmed());
+                    }
                 }
             }
             Command::Edit { website } => {
