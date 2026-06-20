@@ -454,6 +454,7 @@ pub fn rename_password_file(
     config_dir: &str,
     old_website: &str,
     new_website: &str,
+    tag: &Option<String>,
 ) -> Result<(), SilicateError> {
     let old_file_path = find_password_file(config_dir, old_website)?.ok_or_else(|| {
         SilicateError::IoError(std::io::Error::new(
@@ -462,10 +463,15 @@ pub fn rename_password_file(
         ))
     })?;
 
-    let (_, tag) = if let Some((base, t)) = old_file_path.split_once('-') {
-        (base, Some(t))
+    let tag = if let Some(t) = tag {
+        Some(t.clone())
     } else {
-        (old_file_path.as_str(), None)
+        // Try to extract the tag from the old filename if it exists
+        if let Some((_, existing_tag)) = old_file_path.split_once('-') {
+            Some(existing_tag.to_string())
+        } else {
+            None
+        }
     };
 
     let old_file_path = std::path::Path::new(config_dir).join(&old_file_path);
