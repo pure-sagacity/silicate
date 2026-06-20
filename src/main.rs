@@ -98,6 +98,16 @@ enum Command {
         // This is if you are exporting a key vs a secrets file
         key: bool,
     },
+
+    Tag {
+        #[clap(subcommand)]
+        command: TagCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum TagCommand {
+    List {},
 }
 
 fn get_password(prompt: &str) -> String {
@@ -867,6 +877,27 @@ fn main() {
                     };
                 }
             }
+            Command::Tag { command } => match command {
+                TagCommand::List {} => {
+                    let tags = match silicate::list_tags(&config_dir()) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            println!("{}", format!("Failed to list tags. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to list tags: {}", e));
+                            return;
+                        }
+                    };
+
+                    if tags.is_empty() {
+                        println!("{}", "No tags found.".yellow());
+                    } else {
+                        println!("{}", "Existing tags:".dimmed());
+                        for tag in tags {
+                            println!("- {}", tag.bold().italic().bright_green());
+                        }
+                    }
+                }
+            },
         },
         None => {
             let websites =

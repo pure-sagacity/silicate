@@ -449,7 +449,6 @@ pub fn import_key(file_path: &str) -> Result<(), SilicateError> {
 }
 
 /// This function will rename a password file in the config directory.
-/// Retagging will be handled in another function.
 pub fn rename_password_file(
     config_dir: &str,
     old_website: &str,
@@ -486,6 +485,20 @@ pub fn rename_password_file(
 
     std::fs::rename(old_file_path, new_file_path)?;
     Ok(())
+}
+
+/// This function will get all unique tags from the password files in the config directory.
+pub fn list_tags(config_dir: &str) -> Result<Vec<String>, SilicateError> {
+    let mut tags = Vec::new();
+    let passwords = list_passwords(config_dir)?;
+    for password in passwords {
+        if let Some((_, tag)) = password.split_once('-') {
+            if !tags.contains(&tag.to_string()) {
+                tags.push(tag.to_string());
+            }
+        }
+    }
+    Ok(tags)
 }
 
 #[cfg(test)]
