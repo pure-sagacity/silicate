@@ -37,6 +37,8 @@ enum Command {
     },
 
     Init {},
+
+    Search {},
 }
 
 fn get_password(prompt: &str) -> String {
@@ -286,6 +288,35 @@ fn main() {
                     );
                 }
             }
+            Command::Search {} => match silicate::search_password(&config_dir()) {
+                Ok(Some(selection)) => {
+                    let key = get_key();
+                    let data = fs::read(format!("{}{}.bin", config_dir(), selection)).unwrap();
+                    let (nonce_bytes, cipher_bytes) = data.split_at(12);
+                    let password = silicate::decrypt_passwd(
+                        &key.try_into().unwrap(),
+                        cipher_bytes.to_vec(),
+                        nonce_bytes.try_into().unwrap(),
+                    )
+                    .unwrap();
+
+                    let mut clipboard =
+                        arboard::Clipboard::new().expect("Failed to copy password.");
+                    clipboard
+                        .set_text(password)
+                        .expect("Failed to copy password.");
+
+                    println!(
+                        "{}",
+                        format!("Password for {} copied to clipboard.", selection).green()
+                    );
+                }
+                Ok(None) => println!("No selection made or selection canceled."),
+                Err(e) => {
+                    println!("{}", format!("Error during search: {}", e).red());
+                    write_to_logs(&format!("Error during search: {}", e));
+                }
+            },
         },
         None => {
             let websites = silicate::list_passwords(&config_dir());
