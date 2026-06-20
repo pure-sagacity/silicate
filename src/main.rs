@@ -1,15 +1,15 @@
 const PASSWORD_DIRECTORY: &str = ".silicate/";
 
-use std::{
-    fs,
-    io::{self, Read, Write},
-};
-
 use clap::{Parser, Subcommand};
+use colored::*;
 use rpassword::prompt_password_with_config;
 use silicate::{
     derive_key_from_password, encrypt_passwd, generate_fallback_key, generate_key,
     is_keyring_available, retrieve_key_from_keyring, store_key_in_keyring,
+};
+use std::{
+    fs,
+    io::{self, Read, Write},
 };
 #[derive(Parser)]
 struct CLI {
@@ -86,8 +86,15 @@ fn write_to_logs(msg: &str) {
     let msg = msg.to_string() + "\n";
 
     // Write data
-    file.write_all(msg.as_bytes())
-        .expect("Failed to write to file");
+    match file.write_all(msg.as_bytes()) {
+        Ok(_) => (),
+        Err(e) => {
+            let msg = format!("Failed to write to log file: {} - Error: {}", path, e)
+                .to_string()
+                .red();
+            println!("{}", msg);
+        }
+    }
 }
 
 fn config() -> rpassword::Config {
@@ -102,6 +109,8 @@ fn config_dir() -> String {
 }
 
 fn get_key() -> Vec<u8> {
+    let init_cmd = "silicate init".to_string().italic();
+
     match retrieve_key_from_keyring() {
         Ok(k) => k.try_into().unwrap(),
         Err(_) => {
@@ -113,9 +122,13 @@ fn get_key() -> Vec<u8> {
                         let key = derive_key_from_password(&password, &salt.try_into().unwrap());
                         return key.to_vec();
                     } else {
-                        println!(
-                            "No key found in keyring or fallback location. Please run `silicate init` first."
-                        );
+                        let msg = format!(
+                            "No key found in keyring or fallback location. Please run `{}` first.",
+                            init_cmd
+                        )
+                        .to_string()
+                        .red();
+                        println!("{}", msg);
                         write_to_logs(
                             "No key found in keyring or fallback location during get_key.",
                         );
@@ -123,10 +136,13 @@ fn get_key() -> Vec<u8> {
                     }
                 }
                 Err(e) => {
-                    println!(
-                        "Failed to check for fallback key: {}. Please run `silicate init` first.",
-                        e
-                    );
+                    let msg = format!(
+                        "Failed to check for fallback key: {}. Please run `{}` first.",
+                        e, init_cmd
+                    )
+                    .to_string()
+                    .red();
+                    println!("{}", msg);
                     write_to_logs(&format!("Failed to check for fallback key: {}", e));
                     std::process::exit(1);
                 }
@@ -163,15 +179,24 @@ fn main() {
                 .unwrap();
             }
             Command::Delete { website } => {
-                print!("Are you sure you want to delete the password for {website}? (y/N): ");
+                let default_letter = "N".to_string().italic().bold();
+                print!(
+                    "Are you sure you want to delete the password for {website}? (y/{default_letter}): "
+                );
                 io::stdout().flush().unwrap();
                 let mut input = String::new();
                 io::stdin().read_line(&mut input).unwrap();
                 if input.trim().to_lowercase() == "y" {
                     match fs::remove_file(format!("{}{}.bin", config_dir(), website)) {
-                        Ok(_) => println!("Password for {website} deleted successfully."),
+                        Ok(_) => println!(
+                            "{}",
+                            format!("Password for {website} deleted successfully.").green()
+                        ),
                         Err(e) => {
-                            println!("Failed to delete password for {website}: {}", e);
+                            println!(
+                                "{}",
+                                format!("Failed to delete password for {}: {}", website, e).red()
+                            );
                             write_to_logs(&format!(
                                 "Failed to delete password for {website}: {}",
                                 e
@@ -179,7 +204,7 @@ fn main() {
                         }
                     };
                 } else {
-                    println!("Deletion cancelled.");
+                    println!("{}", "Deletion cancelled.".italic().yellow());
                 }
             }
             Command::Show { website, display } => {
@@ -195,7 +220,8 @@ fn main() {
                 )
                 .unwrap();
                 if *display {
-                    println!("Password for {}: {}", website, password);
+                    let msg = format!("Password for {}: {}", website, password.bold());
+                    println!("{}", msg);
                 } else {
                     // Copy to clipboard
                     let mut clipboard =
@@ -204,16 +230,23 @@ fn main() {
                         .set_text(password)
                         .expect("Failed to copy password.");
 
-                    println!(
+                    println!("{}", "Password copied to clipboard.".green());
+
+                    let msg = format!(
                         "To show the password, use `silicate show {} --display`",
                         website
                     );
+
+                    println!("{}", msg.dimmed());
                 }
             }
             Command::Init {} => {
-                println!("Initializing password manager...");
+                let welcome_msg = "Welcome to Silicate.".bold().green();
+                let default_letter = "N".to_string().italic().bold();
+
+                println!("{}", "Initializing password manager...".dimmed());
                 create_dir();
-                println!("Password manager initialized.");
+                println!("{}", "Password manager initialized.".dimmed());
                 write_to_logs("Password manager initialized.");
 
                 // Generating a new key/password derivation and storing it in the keyring
@@ -222,16 +255,16 @@ fn main() {
 
                     match store_key_in_keyring(&new_key) {
                         Ok(_) => {
-                            println!("Key stored in keyring successfully.\nWelcome to Silicate.")
+                            println!("Key stored in keyring successfully.\n{}", welcome_msg);
                         }
                         Err(e) => {
-                            println!("Failed to store key in keyring: {}", e);
+                            println!("{}", format!("Failed to store key in keyring: {}", e).red());
                             write_to_logs(&format!("Failed to store key in keyring: {}", e));
                         }
                     }
                 } else {
                     print!(
-                        "Keyring is not available on this system. Would you like to continue with a password-based key? (y/N: "
+                        "Keyring is not available on this system. Would you like to continue with a password-based key? (y/{default_letter}): "
                     );
                     io::stdout().flush().unwrap();
                     let mut input = String::new();
@@ -248,22 +281,26 @@ fn main() {
                     fs::write(config_dir() + "salt.bin", &salt).unwrap();
 
                     println!(
-                        "Key derived from password and stored successfully.\nWelcome to Silicate."
+                        "Key derived from password and stored successfully.\n{}",
+                        welcome_msg
                     );
                 }
             }
         },
         None => {
-            println!("Listing all stored passwords...");
-
             let websites = silicate::list_passwords(&config_dir());
             if websites.is_empty() {
-                println!("No passwords stored yet.");
+                println!("{}", "No passwords stored yet.".yellow());
             } else {
                 println!("Stored passwords for the following websites:");
                 for site in websites {
-                    println!("- {}", site);
+                    println!("{}", format!("- {}", site).bold());
                 }
+
+                println!(
+                    "{}",
+                    "Use `silicate show <website>` to view a password.".dimmed()
+                );
             }
         }
     }
