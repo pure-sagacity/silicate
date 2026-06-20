@@ -76,11 +76,18 @@ enum Command {
 
     Import {
         file_path: String,
+        #[clap(long = "key", short = 'k')]
+        // This is if you are importing a key vs a secrets file
+        key: bool,
     },
 
     Export {
         #[clap(long = "file-path", short = 'f')]
         file_path: Option<String>,
+
+        #[clap(long = "key", short = 'k')]
+        // This is if you are exporting a key vs a secrets file
+        key: bool,
     },
 }
 
@@ -496,9 +503,30 @@ fn main() {
                     println!("{}", format!("No password found for '{}'.", website).red());
                 }
             }
-            Command::Export { file_path } => {
+            Command::Export { file_path, key } => {
+                if *key {
+                    match export_key(file_path) {
+                        Ok(()) => println!("Key exported successfully."),
+                        Err(e) => eprintln!("Failed to export key: {}", e),
+                    }
+                } else {
+                    let secrets = json::get_secrets(&config_dir(), list_passwords(&config_dir()));
+
+                    json::export_secrets(secrets, &file_path);
+                }
             }
-            Command::Import { file_path } => {}
+            Command::Import { file_path, key } => {
+                if *key {
+                    match import_key(file_path) {
+                        Ok(()) => println!("Key imported successfully."),
+                        Err(e) => eprintln!("Failed to import key: {}", e),
+                    }
+                } else {
+                    let secrets = json::import_secrets(file_path.to_string());
+
+                    json::write_secrets(&config_dir(), secrets);
+                }
+            }
         },
         None => {
             let websites = silicate::list_passwords(&config_dir());

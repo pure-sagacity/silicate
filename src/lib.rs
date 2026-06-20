@@ -296,6 +296,36 @@ pub fn find_password_file(config_dir: &str, target_website: &str) -> Option<Stri
         false
     })
 }
+
+/// This functon will export the key from the keyring to a file in the config directory.
+/// This is for users who need to backup their key or export a key that was generated on a different machine.
+pub fn export_key(file_path: &Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let key = retrieve_key_from_keyring()?;
+    let path = file_path.as_ref().map_or_else(
+        || {
+            format!(
+                "./key-{}.bin",
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S")
+            )
+        },
+        |p| p.clone(),
+    );
+    std::fs::write(&path, key)?;
+    println!("Key exported to {}", path);
+    Ok(())
+}
+
+/// This function imports the key from a file and stores it in the keyring.
+/// This is for users who need to restore a key from a backup or import a key that was generated on a different machine.
+pub fn import_key(file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let key_bytes = std::fs::read(file_path)?;
+    let key: [u8; 32] = key_bytes
+        .try_into()
+        .map_err(|_| "Invalid key file: expected 32 bytes")?;
+    store_key_in_keyring(&key)?;
+    println!("Key imported and stored in keyring.");
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     use super::*;

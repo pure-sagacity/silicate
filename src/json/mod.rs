@@ -13,17 +13,21 @@ pub struct Secret {
 pub fn get_secrets(config_dir: &str, websites: Vec<String>) -> Vec<Secret> {
     let mut secrets = Vec::new();
     for website in websites {
-        let path = find_password_file(config_dir, &website.to_string()).unwrap();
+        // (e.g., "github" or "github-tag")
+        let file_identifier = find_password_file(config_dir, &website.to_string()).unwrap();
+        
+        let full_path = format!("{}{}.bin", config_dir, file_identifier);
 
-        let (name, tag) = path.split_once("-").unwrap();
+        let mut split_identifier = file_identifier.split('-');
+        let name = split_identifier.next().unwrap().to_string();
+        let tag = split_identifier.next().map(|s| s.to_string());
 
-        let path = format!("{}{}", config_dir, path);
-
-        let ciphertext = std::fs::read_to_string(&path).unwrap();
+        let binary_data = std::fs::read(&full_path).unwrap();
+        let ciphertext = hex::encode(binary_data);
 
         secrets.push(Secret {
-            name: name.to_string(),
-            tag: Some(tag.to_string()),
+            name,
+            tag,
             ciphertext,
         });
     }
@@ -45,14 +49,17 @@ pub fn write_secrets(config_dir: &str, secrets: Vec<Secret>) {
 }
 
 /// This function exports the secrets in memory to a JSON file.
-pub fn export_secrets(secrets: Vec<Secret>, path: Option<String>) {
+pub fn export_secrets(secrets: Vec<Secret>, path: &Option<String>) {
     let json = serde_json::to_string_pretty(&secrets).unwrap();
-    let path = path.unwrap_or_else(|| {
-        format!(
-            "./export-{}.json",
-            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S")
-        )
-    });
+    let path = path.as_ref().map_or_else(
+        || {
+            format!(
+                "./export-{}.json",
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S")
+            )
+        },
+        |p| p.clone(),
+    );
     std::fs::write(&path, json).unwrap();
     println!("Secrets exported to {}", path);
 }
