@@ -71,7 +71,7 @@ enum Command {
         display: bool,
     },
 
-    Update {
+    Edit {
         website: String,
     },
 
@@ -226,6 +226,7 @@ fn get_key() -> Vec<u8> {
 
 fn main() {
     let cli = CLI::parse();
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
 
     if !fs::exists(config_dir()).unwrap_or(false) {
         println!(
@@ -362,7 +363,7 @@ fn main() {
                             write_to_logs(&format!("Failed to copy password to clipboard: {}", e));
                             return;
                         }
-                    } // <--- THIS BRACE WAS MISSING!
+                    }
 
                     println!("{}", "Password copied to clipboard.".green());
 
@@ -378,6 +379,53 @@ fn main() {
                 let welcome_msg = "Welcome to Silicate.".bold().green();
                 let default_letter = "N".to_string().italic().bold();
 
+                // We are going to check if there are any files already existing. After confirming, DELETE
+                let config_path = config_dir();
+
+                if fs::exists(&config_path).unwrap_or(false) {
+                    print!(
+                        "A configuration directory already exists at {}. Initializing will delete all existing passwords. Do you want to continue? (y/{default_letter}): ",
+                        config_path.dimmed()
+                    );
+                    io::stdout().flush().unwrap();
+                    let mut input = String::new();
+                    match io::stdin().read_line(&mut input) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            println!("Failed to read input. Initialization implicitly cancelled.");
+                            write_to_logs(
+                                "Failed to read input during initialization confirmation.",
+                            );
+                            return;
+                        }
+                    }
+
+                    if input.trim().to_lowercase() != "y" {
+                        println!("{}", "Initialization cancelled.".italic().yellow());
+                        return;
+                    }
+
+                    for entry in fs::read_dir(&config_path).unwrap() {
+                        let entry = entry.unwrap();
+                        let path = entry.path();
+                        if path.is_file() {
+                            match fs::remove_file(&path) {
+                                Ok(_) => (),
+                                Err(e) => {
+                                    println!(
+                                        "{}",
+                                        format!("Failed to delete existing file during initialization: {}", e)
+                                            .red()
+                                    );
+                                    write_to_logs(&format!(
+                                        "Failed to delete existing file during initialization: {}",
+                                        e
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
                 println!("{}", "Initializing password manager...".dimmed());
                 create_dir();
                 println!("{}", "Password manager initialized.".dimmed());
@@ -561,8 +609,7 @@ fn main() {
                     println!("{}", msg.dimmed());
                 }
             }
-            Command::Update { website } => {
-                // 1. Properly handle the Result from find_password_file first
+            Command::Edit { website } => {
                 let file_path_option = match find_password_file(&config_dir(), website) {
                     Ok(path) => path,
                     Err(e) => {
@@ -575,10 +622,7 @@ fn main() {
                     }
                 };
 
-                // 2. Now unwrap the Option safely using if let
                 if let Some(path) = file_path_option {
-                    // 3. FIX: get_key returns a Vec<u8>. We just need a slice reference,
-                    // no need to attempt an explicit array conversion that fails on type mismatch.
                     let key_vec = get_key();
                     let key_bytes = key_vec.as_slice();
 
@@ -594,7 +638,95 @@ fn main() {
                         }
                     };
 
-                    let new_password = get_password("Enter the new password: ");
+                    let new_file =
+                        format!("/tmp/{}-{}.tmp", website, chrono::Utc::now().timestamp());
+
+                    // Read the existing password to pre-populate the editor
+                    let data = match fs::read(format!("{}{}.bin", config_dir(), path)) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while reading the existing password. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while reading the existing password: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    };
+
+                    let (nonce_bytes, cipher_bytes) = data.split_at(12);
+                    let old_password = match silicate::decrypt_passwd(
+                        key,
+                        cipher_bytes.to_vec(),
+                        nonce_bytes.try_into().unwrap(),
+                    ) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while decrypting the existing password. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while decrypting the existing password: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    };
+
+                    match fs::write(&new_file, old_password) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while writing to temporary file. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while writing to temporary file: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    }
+
+                    let status = match std::process::Command::new(editor).arg(&new_file).status() {
+                        Ok(s) => s,
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while opening the editor. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while opening the editor: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    };
+
+                    if !status.success() {
+                        println!("{}", format!("Editor exited with an error. Check log file (/tmp/silicate.log) for more information.").red());
+                        write_to_logs(&format!(
+                            "Editor exited with an error during password update: {}",
+                            status
+                        ));
+                        return;
+                    }
+
+                    let new_password = match fs::read_to_string(&new_file) {
+                        Ok(p) => p.trim().to_string(),
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while reading the updated password. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while reading the updated password: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    };
+
+                    // Delete the temp file
+                    match fs::remove_file(&new_file) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while deleting the temporary file. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!(
+                                "Error occurred while deleting the temporary file: {}",
+                                e
+                            ));
+                        }
+                    }
 
                     let (new_cipher_bytes, new_nonce_bytes) = match encrypt_passwd(
                         key,
