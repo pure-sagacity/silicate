@@ -68,6 +68,10 @@ enum Command {
         #[clap(long)]
         display: bool,
     },
+
+    Update {
+        website: String,
+    },
 }
 
 fn get_password(prompt: &str) -> String {
@@ -459,6 +463,27 @@ fn main() {
                     );
 
                     println!("{}", msg.dimmed());
+                }
+            }
+            Command::Update { website } => {
+                if let Some(path) = find_password_file(&config_dir(), website) {
+                    let key: &[u8; 32] = &get_key().as_slice().try_into().unwrap();
+                    let new_password = get_password("Enter the new password: ");
+
+                    let (new_cipher_bytes, new_nonce_bytes) =
+                        encrypt_passwd(key, new_password).unwrap();
+
+                    let path = format!("{}{}.bin", config_dir(), path);
+
+                    fs::write(
+                        path,
+                        [new_nonce_bytes.as_slice(), new_cipher_bytes.as_slice()].concat(),
+                    )
+                    .unwrap();
+
+                    println!("{}", "Password updated successfully.".green());
+                } else {
+                    println!("{}", format!("No password found for '{}'.", website).red());
                 }
             }
         },
