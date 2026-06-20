@@ -75,6 +75,14 @@ enum Command {
         website: String,
     },
 
+    Rename {
+        old_website: String,
+        new_website: String,
+
+        #[clap(long, short = 't')]
+        tag: Option<String>,
+    },
+
     Import {
         file_path: String,
         #[clap(long = "key", short = 'k')]
@@ -827,6 +835,36 @@ fn main() {
                             return;
                         }
                     }
+                }
+            }
+            Command::Rename {
+                old_website,
+                new_website,
+                tag,
+            } => {
+                let default_letter = "N".to_string().italic().bold();
+
+                print!(
+                    "Are you sure you want to rename the password file for {old_website} to {new_website}? (y/{default_letter}): "
+                );
+                std::io::stdout().flush().unwrap();
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).unwrap();
+                if input.trim() == "y" || input.trim() == "Y" {
+                    match rename_password_file(&config_dir(), old_website, new_website, tag) {
+                        Ok(()) => println!(
+                            "{}",
+                            format!(
+                                "Password file renamed from {} to {} successfully.",
+                                old_website, new_website
+                            )
+                            .green()
+                        ),
+                        Err(e) => {
+                            println!("{}", format!("Failed to rename password file, check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!("Failed to rename password file: {}", e));
+                        }
+                    };
                 }
             }
         },
