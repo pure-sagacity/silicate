@@ -38,7 +38,10 @@ enum Command {
 
     Init {},
 
-    Search {},
+    Search {
+        #[clap(long)]
+        display: bool,
+    },
 }
 
 fn get_password(prompt: &str) -> String {
@@ -288,7 +291,7 @@ fn main() {
                     );
                 }
             }
-            Command::Search {} => {
+            Command::Search { display } => {
                 if !check_fzf_installed() {
                     let msg = "fzf is not installed or not found in PATH. Please install fzf to use the search feature.".to_string().red();
                     println!("{}", msg);
@@ -308,16 +311,26 @@ fn main() {
                         )
                         .unwrap();
 
-                        let mut clipboard =
-                            arboard::Clipboard::new().expect("Failed to copy password.");
-                        clipboard
-                            .set_text(password)
-                            .expect("Failed to copy password.");
+                        if *display {
+                            let msg = format!("Password for {}: {}", selection, password.bold());
+                            println!("{}", msg);
+                        } else {
+                            // Copy to clipboard
+                            let mut clipboard =
+                                arboard::Clipboard::new().expect("Failed to copy password.");
+                            clipboard
+                                .set_text(password)
+                                .expect("Failed to copy password.");
 
-                        println!(
-                            "{}",
-                            format!("Password for {} copied to clipboard.", selection).green()
-                        );
+                            println!("{}", "Password copied to clipboard.".green());
+
+                            let msg = format!(
+                                "To show the password, use `silicate show {} --display`",
+                                selection
+                            );
+
+                            println!("{}", msg.dimmed());
+                        }
                     }
                     Ok(None) => println!("No selection made or selection canceled."),
                     Err(e) => {

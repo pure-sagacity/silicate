@@ -3,6 +3,5 @@
 3. Password Generator
 4. Import Exporter
 5. Init with more interactivity, like vault path
-6. Search with --display
-7. Import/Export Func
-8. Updating Password Entries
+6. Import/Export Func
+7. Updating Password Entries
