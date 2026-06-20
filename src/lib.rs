@@ -1,3 +1,5 @@
+mod json;
+
 use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::{
     Aes256Gcm, Nonce,
