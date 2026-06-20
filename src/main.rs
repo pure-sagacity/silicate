@@ -229,23 +229,46 @@ fn main() {
                 io::stdout().flush().unwrap();
                 let mut input = String::new();
                 io::stdin().read_line(&mut input).unwrap();
+
                 if input.trim().to_lowercase() == "y" {
-                    match fs::remove_file(format!("{}{}.bin", config_dir(), website)) {
-                        Ok(_) => println!(
-                            "{}",
-                            format!("Password for {website} deleted successfully.").green()
-                        ),
-                        Err(e) => {
+                    // 1. Scan the directory using your existing helper to look for a matching name
+                    let passwords = silicate::list_passwords(&config_dir());
+
+                    // Find if any entry matches 'website' or starts with 'website-'
+                    let target_file = passwords
+                        .iter()
+                        .find(|p| **p == *website || p.starts_with(&format!("{}-", website)));
+
+                    match target_file {
+                        Some(filename) => {
+                            // 2. Reconstruct the actual filename found on disk
+                            let password_path = format!("{}{}.bin", config_dir(), filename);
+
+                            match fs::remove_file(&password_path) {
+                                Ok(_) => println!(
+                                    "{}",
+                                    format!("Password for {website} deleted successfully.").green()
+                                ),
+                                Err(e) => {
+                                    println!(
+                                        "{}",
+                                        format!("Failed to delete password for {}: {}", website, e)
+                                            .red()
+                                    );
+                                    write_to_logs(&format!(
+                                        "Failed to delete password for {website}: {}",
+                                        e
+                                    ));
+                                }
+                            }
+                        }
+                        None => {
                             println!(
                                 "{}",
-                                format!("Failed to delete password for {}: {}", website, e).red()
+                                format!("Error: No password file found for '{}'.", website).red()
                             );
-                            write_to_logs(&format!(
-                                "Failed to delete password for {website}: {}",
-                                e
-                            ));
                         }
-                    };
+                    }
                 } else {
                     println!("{}", "Deletion cancelled.".italic().yellow());
                 }
