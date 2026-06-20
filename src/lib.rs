@@ -8,27 +8,131 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArOsRng},
 };
 use colored::*;
-use keyring::{Entry, Error};
+use keyring::Entry;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
 const SERVICE_NAME: &str = "silicate";
 const USERNAME: &str = "default";
 
+#[derive(Debug)]
+pub enum SilicateError {
+    KeyringError(keyring::Error),
+    IoError(std::io::Error),
+    HexError(hex::FromHexError),
+    SerdeJsonError(serde_json::Error),
+    Argon2Error(argon2::password_hash::Error),
+    AesGcmError(aes_gcm::Error),
+    AesInvalidKeyLengthError(aes_gcm::aes::cipher::InvalidLength),
+    StdioError(std::io::Error),
+    Utf8Error(std::string::FromUtf8Error),
+    Argon2PasswordHashError(argon2::password_hash::Error),
+    TryFromSliceError(std::array::TryFromSliceError),
+}
+
+impl From<keyring::Error> for SilicateError {
+    fn from(err: keyring::Error) -> SilicateError {
+        SilicateError::KeyringError(err)
+    }
+}
+
+impl From<std::io::Error> for SilicateError {
+    fn from(err: std::io::Error) -> SilicateError {
+        SilicateError::IoError(err)
+    }
+}
+
+impl From<hex::FromHexError> for SilicateError {
+    fn from(err: hex::FromHexError) -> SilicateError {
+        SilicateError::HexError(err)
+    }
+}
+
+impl From<serde_json::Error> for SilicateError {
+    fn from(err: serde_json::Error) -> SilicateError {
+        SilicateError::SerdeJsonError(err)
+    }
+}
+
+impl From<argon2::password_hash::Error> for SilicateError {
+    fn from(err: argon2::password_hash::Error) -> SilicateError {
+        SilicateError::Argon2Error(err)
+    }
+}
+
+impl From<aes_gcm::Error> for SilicateError {
+    fn from(err: aes_gcm::Error) -> SilicateError {
+        SilicateError::AesGcmError(err)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for SilicateError {
+    fn from(err: std::string::FromUtf8Error) -> SilicateError {
+        SilicateError::Utf8Error(err)
+    }
+}
+
+impl From<aes_gcm::aes::cipher::InvalidLength> for SilicateError {
+    fn from(err: aes_gcm::aes::cipher::InvalidLength) -> SilicateError {
+        SilicateError::AesInvalidKeyLengthError(err)
+    }
+}
+
+impl From<std::array::TryFromSliceError> for SilicateError {
+    fn from(err: std::array::TryFromSliceError) -> SilicateError {
+        SilicateError::TryFromSliceError(err)
+    }
+}
+
+impl From<Vec<u8>> for SilicateError {
+    fn from(err: Vec<u8>) -> SilicateError {
+        SilicateError::IoError(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Vec<u8> error: {:?}", err),
+        ))
+    }
+}
+
+impl std::fmt::Display for SilicateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SilicateError::KeyringError(e) => write!(f, "Keyring error: {}", e),
+            SilicateError::IoError(e) => write!(f, "I/O error: {}", e),
+            SilicateError::HexError(e) => write!(f, "Hex decoding error: {}", e),
+            SilicateError::SerdeJsonError(e) => {
+                write!(f, "JSON serialization/deserialization error: {}", e)
+            }
+            SilicateError::Argon2Error(e) => write!(f, "Argon2 error: {}", e),
+            SilicateError::AesGcmError(e) => {
+                write!(f, "AES-GCM encryption/decryption error: {}", e)
+            }
+            SilicateError::Utf8Error(e) => write!(f, "UTF-8 conversion error: {}", e),
+            SilicateError::AesInvalidKeyLengthError(e) => {
+                write!(f, "AES invalid key length error: {}", e)
+            }
+            SilicateError::TryFromSliceError(e) => write!(f, "TryFromSlice error: {}", e),
+            SilicateError::Argon2PasswordHashError(e) => {
+                write!(f, "Argon2 password hash error: {}", e)
+            }
+            SilicateError::StdioError(e) => write!(f, "Stdio error: {}", e),
+        }
+    }
+}
+
 /// Encrypts the given plaintext using AES-256-GCM. Returns the ciphertext and the nonce used for encryption.
 pub fn encrypt_passwd(
     key_bytes: &[u8; 32],
     plaintext: String,
-) -> Result<(Vec<u8>, [u8; 12]), aes_gcm::Error> {
+) -> Result<(Vec<u8>, [u8; 12]), SilicateError> {
     // Changed [u8; 12] to Vec<u8>
-    let cipher = Aes256Gcm::new_from_slice(key_bytes).unwrap();
+    let cipher = Aes256Gcm::new_from_slice(key_bytes)?;
 
     let mut nonce_bytes = [0u8; 12];
     OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())?;
-    Ok((ciphertext, nonce_bytes)) // Removed the broken .try_into().unwrap()
+    Ok((ciphertext, nonce_bytes))
 }
 
 /// Decrypts the given ciphertext using AES-256-GCM. Requires the same key and nonce used for encryption.
@@ -36,12 +140,12 @@ pub fn decrypt_passwd(
     key_bytes: &[u8; 32],
     ciphertext: Vec<u8>,
     nonce_bytes: [u8; 12],
-) -> Result<String, aes_gcm::Error> {
-    let cipher = Aes256Gcm::new_from_slice(key_bytes).unwrap();
+) -> Result<String, SilicateError> {
+    let cipher = Aes256Gcm::new_from_slice(key_bytes)?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let plaintext_bytes = cipher.decrypt(nonce, ciphertext.as_ref())?;
-    let plaintext = String::from_utf8(plaintext_bytes).unwrap();
+    let plaintext = String::from_utf8(plaintext_bytes)?;
     Ok(plaintext)
 }
 
@@ -54,41 +158,54 @@ pub fn generate_key() -> [u8; 32] {
 /// Generates a fallback key using a password-based key derivation.
 /// This is used when the user doesn't have a secure key management solution in place.
 /// Returns the derived key and the salt used for hashing.
-pub fn generate_fallback_key(password: &str) -> ([u8; 32], [u8; 16]) {
+pub fn generate_fallback_key(password: &str) -> Result<([u8; 32], [u8; 16]), SilicateError> {
     let salt = SaltString::generate(&mut ArOsRng);
     let argon2 = Argon2::default(); // 32-byte output by default
-    let hashed = argon2.hash_password(password.as_bytes(), &salt).unwrap();
-    let key_bytes: [u8; 32] = hashed.hash.unwrap().as_bytes().try_into().unwrap();
+    let hashed = argon2.hash_password(password.as_bytes(), &salt)?;
+    let key_bytes: [u8; 32] = hashed
+        .hash
+        .ok_or_else(|| {
+            SilicateError::Argon2PasswordHashError(argon2::password_hash::Error::Password)
+        })?
+        .as_bytes()
+        .try_into()?;
     let mut salt_bytes = [0u8; 16];
-    salt.decode_b64(&mut salt_bytes).unwrap();
-    (key_bytes.try_into().unwrap(), salt_bytes)
+    salt.decode_b64(&mut salt_bytes)?;
+    Ok((key_bytes, salt_bytes))
 }
 
 /// This function will take a salt and a password and derive the same key as the generate_fallback_key function.
 /// This is used for retrieving the key when the user doesn't have a secure key management solution in place.
-pub fn derive_key_from_password(password: &str, salt: &[u8; 16]) -> [u8; 32] {
-    let salt_string = SaltString::encode_b64(salt).unwrap();
+pub fn derive_key_from_password(
+    password: &str,
+    salt: &[u8; 16],
+) -> Result<[u8; 32], SilicateError> {
+    let salt_string = SaltString::encode_b64(salt)?;
     let argon2 = Argon2::default(); // 32-byte output by default
-    let hashed = argon2
-        .hash_password(password.as_bytes(), &salt_string)
-        .unwrap();
-    let key_bytes: [u8; 32] = hashed.hash.unwrap().as_bytes().try_into().unwrap();
-    key_bytes.try_into().unwrap()
+    let hashed = argon2.hash_password(password.as_bytes(), &salt_string)?;
+    let key_bytes: [u8; 32] = hashed
+        .hash
+        .ok_or_else(|| {
+            SilicateError::Argon2PasswordHashError(argon2::password_hash::Error::Password)
+        })?
+        .as_bytes()
+        .try_into()?;
+    Ok(key_bytes)
 }
 
 /// This puts a randomly generated key into the system's keyring.
-pub fn store_key_in_keyring(key: &[u8; 32]) -> Result<(), Error> {
+pub fn store_key_in_keyring(key: &[u8; 32]) -> Result<(), SilicateError> {
     let entry = Entry::new(SERVICE_NAME, USERNAME)?;
     entry.set_password(&hex::encode(key))?;
     Ok(())
 }
 
 /// This retrieves the key from the system's keyring.
-pub fn retrieve_key_from_keyring() -> Result<[u8; 32], Error> {
+pub fn retrieve_key_from_keyring() -> Result<[u8; 32], SilicateError> {
     let entry = Entry::new(SERVICE_NAME, USERNAME)?;
     let key_hex = entry.get_password()?;
-    let key_bytes = hex::decode(key_hex).unwrap();
-    Ok(key_bytes.try_into().unwrap())
+    let key_bytes: [u8; 32] = hex::decode(key_hex)?.try_into()?;
+    Ok(key_bytes)
 }
 
 /// This function checks if a keyring is available and can be accessed.
@@ -100,7 +217,7 @@ pub fn is_keyring_available() -> bool {
 
 /// This function lists all the password files in the config directory, excluding the salt file.
 /// It returns a vector of website names (without the .bin extension).
-pub fn list_passwords(config_dir: &str) -> Vec<String> {
+pub fn list_passwords(config_dir: &str) -> Result<Vec<String>, SilicateError> {
     let mut websites = Vec::new();
     if let Ok(entries) = std::fs::read_dir(config_dir) {
         for entry in entries.flatten() {
@@ -111,7 +228,7 @@ pub fn list_passwords(config_dir: &str) -> Vec<String> {
             }
         }
     }
-    websites
+    Ok(websites)
 }
 
 /// This function checks if fzf is installed on the system by trying to find its path.
@@ -123,8 +240,8 @@ pub fn check_fzf_installed() -> bool {
 pub fn search_password(
     config_dir: &str,
     tag: &Option<String>,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
-    let websites = list_passwords(config_dir);
+) -> Result<Option<String>, SilicateError> {
+    let websites = list_passwords(config_dir)?;
     if websites.is_empty() {
         println!("No passwords found in the config directory.");
         return Ok(None);
@@ -277,10 +394,13 @@ fn update_entry(
     Ok(())
 }
 
-pub fn find_password_file(config_dir: &str, target_website: &str) -> Option<String> {
-    let passwords = list_passwords(config_dir);
+pub fn find_password_file(
+    config_dir: &str,
+    target_website: &str,
+) -> Result<Option<String>, SilicateError> {
+    let passwords = list_passwords(config_dir)?;
 
-    passwords.into_iter().find(|filename| {
+    Ok(passwords.into_iter().find(|filename| {
         // If it's an exact match (no tag)
         if filename == target_website {
             return true;
@@ -294,7 +414,38 @@ pub fn find_password_file(config_dir: &str, target_website: &str) -> Option<Stri
         }
 
         false
-    })
+    }))
+}
+
+/// This function will export the key from the keyring to a file in the config directory.
+/// This is for users who need to backup their key or export a key that was generated on a different machine.
+pub fn export_key(file_path: &Option<String>) -> Result<(), SilicateError> {
+    let key = retrieve_key_from_keyring()?;
+    let path = file_path.as_ref().map_or_else(
+        || {
+            format!(
+                "./key-{}.bin",
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S")
+            )
+        },
+        |p| p.clone(),
+    );
+    std::fs::write(&path, key).unwrap();
+    println!("Key exported to {}", path);
+    Ok(())
+}
+
+/// This function imports the key from a file and stores it in the keyring.
+/// This is for users who need to restore a key from a backup or import a key that was generated on a different machine.
+pub fn import_key(file_path: &str) -> Result<(), SilicateError> {
+    let key_bytes = std::fs::read(file_path).unwrap();
+    let key: [u8; 32] = key_bytes
+        .try_into()
+        .map_err(|_| "Invalid key file: expected 32 bytes")
+        .unwrap();
+    store_key_in_keyring(&key)?;
+    println!("Key imported and stored in keyring.");
+    Ok(())
 }
 #[cfg(test)]
 mod tests {
@@ -312,8 +463,8 @@ mod tests {
     #[test]
     fn test_fallback_key_derivation() {
         let password = "test_password";
-        let (derived_key, salt) = generate_fallback_key(password);
-        let derived_key_again = derive_key_from_password(password, &salt);
+        let (derived_key, salt) = generate_fallback_key(password).unwrap();
+        let derived_key_again = derive_key_from_password(password, &salt).unwrap();
         assert_eq!(derived_key, derived_key_again);
     }
 
