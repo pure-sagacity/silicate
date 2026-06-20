@@ -385,6 +385,59 @@ fn main() {
                     }
                 }
             }
+            Command::Generate {
+                website,
+                tag,
+                length,
+                no_symbols,
+                display,
+            } => {
+                let symbols = !*no_symbols;
+
+                let length = length.unwrap_or(16); // Default length of 16 if not specified
+
+                let password = silicate::generate_password(length, symbols);
+
+                let key = get_key();
+
+                let (cipher_bytes, nonce_bytes) =
+                    encrypt_passwd(&key.try_into().unwrap(), password.clone()).unwrap();
+
+                if let Some(tag) = tag {
+                    fs::write(
+                        format!("{}{}-{}.bin", config_dir(), website, tag),
+                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                    )
+                    .unwrap();
+                } else {
+                    fs::write(
+                        format!("{}{}.bin", config_dir(), website),
+                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                    )
+                    .unwrap();
+                }
+
+                if *display {
+                    let msg = format!("Generated password for {}: {}", website, password.bold());
+                    println!("{}", msg);
+                } else {
+                    // Copy to clipboard
+                    let mut clipboard =
+                        arboard::Clipboard::new().expect("Failed to copy password.");
+                    clipboard
+                        .set_text(password)
+                        .expect("Failed to copy password.");
+
+                    println!("{}", "Generated password copied to clipboard.".green());
+
+                    let msg = format!(
+                        "To show the generated password, use `silicate show {} --display`",
+                        website
+                    );
+
+                    println!("{}", msg.dimmed());
+                }
+            }
         },
         None => {
             let websites = silicate::list_passwords(&config_dir());
