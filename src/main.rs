@@ -108,6 +108,8 @@ enum Command {
         #[clap(long, short = 't')]
         tag: Option<String>,
     },
+
+    Stats {},
 }
 
 #[derive(Subcommand)]
@@ -187,6 +189,23 @@ fn config() -> rpassword::Config {
 
 fn config_dir() -> String {
     format!("{}/{}/", std::env::var("HOME").unwrap(), PASSWORD_DIRECTORY)
+}
+
+fn write_init_timestamp() -> chrono::DateTime<chrono::Utc> {
+    let time_init = chrono::Utc::now();
+
+    // Write the init timestamp to ~/.silicate/init_timestamp.txt for stats purposes
+    // Non-blocking error, so we will .red().dimmed()
+
+    match fs::write(config_dir() + "init_timestamp.txt", time_init.to_rfc3339()) {
+        Ok(_) => (),
+        Err(e) => {
+            println!("{}", format!("Failed to write initialization timestamp: {}. Check log file (/tmp/silicate.log) for more information.", e).red().dimmed());
+            write_to_logs(&format!("Failed to write initialization timestamp: {}", e));
+        }
+    }
+
+    time_init
 }
 
 fn get_key() -> Vec<u8> {
@@ -406,10 +425,11 @@ fn main() {
                 let config_path = config_dir();
 
                 if fs::exists(&config_path).unwrap_or(false) {
-                    print!(
+                    let msg = format!(
                         "A configuration directory already exists at {}. Initializing will delete all existing passwords. Do you want to continue? (y/{default_letter}): ",
                         config_path.dimmed()
                     );
+                    print!("{}", msg.yellow().bold());
                     io::stdout().flush().unwrap();
                     let mut input = String::new();
                     match io::stdin().read_line(&mut input) {
@@ -460,6 +480,7 @@ fn main() {
 
                     match store_key_in_keyring(&new_key) {
                         Ok(_) => {
+                            write_init_timestamp();
                             println!("Key stored in keyring successfully.\n{}", welcome_msg);
                         }
                         Err(e) => {
@@ -491,6 +512,8 @@ fn main() {
 
                     create_dir();
                     fs::write(config_dir() + "salt.bin", &salt).unwrap();
+
+                    write_init_timestamp();
 
                     println!(
                         "Key derived from password and stored successfully.\n{}",
@@ -946,6 +969,40 @@ fn main() {
                         "Use `silicate show <website>` to view a password.".dimmed()
                     );
                 }
+            }
+            Command::Stats {} => {
+                let stats = match silicate::get_stats(&config_dir()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        println!("{}", format!("Failed to get stats. Check log file (/tmp/silicate.log) for more information.").red());
+                        write_to_logs(&format!("Failed to get stats: {}", e));
+                        return;
+                    }
+                };
+
+                println!("{}", "Password Statistics:".bold().green());
+                let msg = "󰌾 Total Passwords:".dimmed();
+                println!(
+                    "{} {}",
+                    msg,
+                    stats.total_passwords.to_string().bold().green()
+                );
+
+                let msg = "󰓹 Total Unique Tags".dimmed();
+                println!("{} {}", msg, stats.unique_tags.to_string().bold().green());
+
+                let msg = "󱑆 Time Since Initialization".dimmed();
+                let duration = chrono::Utc::now() - stats.init_timestamp;
+                let duration_str = if duration.num_days() > 0 {
+                    format!("{} days", duration.num_days())
+                } else if duration.num_hours() > 0 {
+                    format!("{} hours", duration.num_hours())
+                } else if duration.num_minutes() > 0 {
+                    format!("{} minutes", duration.num_minutes())
+                } else {
+                    format!("{} seconds", duration.num_seconds())
+                };
+                println!("{} {}", msg, duration_str.bold().green());
             }
         },
         None => {
