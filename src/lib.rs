@@ -1,3 +1,6 @@
+use std::io::Write;
+use std::process::{Command, Stdio};
+
 use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::{
     Aes256Gcm, Nonce,
@@ -107,6 +110,54 @@ pub fn list_passwords(config_dir: &str) -> Vec<String> {
         }
     }
     websites
+}
+
+pub fn check_fzf_installed() -> bool {
+    which::which("fzf").is_ok()
+}
+
+pub fn search_password(config_dir: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let websites = list_passwords(config_dir);
+    if websites.is_empty() {
+        println!("No passwords found in the config directory.");
+        return Ok(None);
+    }
+
+    let fzf_input = websites.join("\n");
+
+    // 3. Spawn the fzf process
+    // We inherit stderr so fzf can draw its interactive UI on the terminal screen,
+    // while we pipe stdin (to send data) and stdout (to catch the choice).
+    let mut child = Command::new("fzf")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()?;
+
+    // 4. Write our database records to fzf's stdin asynchronously
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(fzf_input.as_bytes())?;
+    }
+
+    // 5. Wait for the user to make a selection and exit
+    let output = child.wait_with_output()?;
+
+    // 6. Handle the result based on the exit code
+    if output.status.success() {
+        let selection = String::from_utf8(output.stdout)?;
+        let trimmed_selection = selection.trim();
+
+        if trimmed_selection.is_empty() {
+            println!("No selection made.");
+            Ok(None)
+        } else {
+            Ok(Some(trimmed_selection.to_string()))
+        }
+    } else {
+        // Exit code 130 typically means the user pressed Esc/Ctrl-C
+        println!("\n❌ Selection canceled or fzf failed.");
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

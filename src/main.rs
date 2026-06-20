@@ -4,8 +4,8 @@ use clap::{Parser, Subcommand};
 use colored::*;
 use rpassword::prompt_password_with_config;
 use silicate::{
-    derive_key_from_password, encrypt_passwd, generate_fallback_key, generate_key,
-    is_keyring_available, retrieve_key_from_keyring, store_key_in_keyring,
+    check_fzf_installed, derive_key_from_password, encrypt_passwd, generate_fallback_key,
+    generate_key, is_keyring_available, retrieve_key_from_keyring, store_key_in_keyring,
 };
 use std::{
     fs,
@@ -37,6 +37,8 @@ enum Command {
     },
 
     Init {},
+
+    Search {},
 }
 
 fn get_password(prompt: &str) -> String {
@@ -284,6 +286,44 @@ fn main() {
                         "Key derived from password and stored successfully.\n{}",
                         welcome_msg
                     );
+                }
+            }
+            Command::Search {} => {
+                if !check_fzf_installed() {
+                    let msg = "fzf is not installed or not found in PATH. Please install fzf to use the search feature.".to_string().red();
+                    println!("{}", msg);
+                    write_to_logs("fzf not found during search command.");
+                    return;
+                }
+
+                match silicate::search_password(&config_dir()) {
+                    Ok(Some(selection)) => {
+                        let key = get_key();
+                        let data = fs::read(format!("{}{}.bin", config_dir(), selection)).unwrap();
+                        let (nonce_bytes, cipher_bytes) = data.split_at(12);
+                        let password = silicate::decrypt_passwd(
+                            &key.try_into().unwrap(),
+                            cipher_bytes.to_vec(),
+                            nonce_bytes.try_into().unwrap(),
+                        )
+                        .unwrap();
+
+                        let mut clipboard =
+                            arboard::Clipboard::new().expect("Failed to copy password.");
+                        clipboard
+                            .set_text(password)
+                            .expect("Failed to copy password.");
+
+                        println!(
+                            "{}",
+                            format!("Password for {} copied to clipboard.", selection).green()
+                        );
+                    }
+                    Ok(None) => println!("No selection made or selection canceled."),
+                    Err(e) => {
+                        println!("{}", format!("Error during search: {}", e).red());
+                        write_to_logs(&format!("Error during search: {}", e));
+                    }
                 }
             }
         },
