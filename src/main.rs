@@ -226,6 +226,14 @@ fn get_key() -> Vec<u8> {
 
 fn main() {
     let cli = CLI::parse();
+
+    if !fs::exists(config_dir()).unwrap_or(false) {
+        println!(
+            "{}",
+            "No ~/.silicate folder created. You may want to run `silicate init`.".dimmed()
+        );
+    }
+
     match &cli.command {
         Some(c) => match c {
             Command::Insert {
