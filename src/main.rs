@@ -9,6 +9,7 @@ use std::{
     fs,
     io::{self, Read, Write},
 };
+mod json;
 #[derive(Parser)]
 #[clap(
     name = "Silicate",
@@ -71,6 +72,15 @@ enum Command {
 
     Update {
         website: String,
+    },
+
+    Import {
+        file_path: String,
+    },
+
+    Export {
+        #[clap(long = "file-path", short = 'f')]
+        file_path: Option<String>,
     },
 }
 
@@ -486,6 +496,9 @@ fn main() {
                     println!("{}", format!("No password found for '{}'.", website).red());
                 }
             }
+            Command::Export { file_path } => {
+            }
+            Command::Import { file_path } => {}
         },
         None => {
             let websites = silicate::list_passwords(&config_dir());
