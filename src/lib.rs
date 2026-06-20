@@ -10,6 +10,7 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArOsRng},
 };
+use colored::*;
 use keyring::{Entry, Error};
 
 const SERVICE_NAME: &str = "silicate";
@@ -116,10 +117,49 @@ pub fn check_fzf_installed() -> bool {
     which::which("fzf").is_ok()
 }
 
-pub fn search_password(config_dir: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
+pub fn search_password(
+    config_dir: &str,
+    tag: &Option<String>,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
     let websites = list_passwords(config_dir);
     if websites.is_empty() {
         println!("No passwords found in the config directory.");
+        return Ok(None);
+    }
+
+    let websites = if let Some(t) = tag {
+        websites
+            .into_iter()
+            .filter(|w| {
+                if let Some((_, w_tag)) = w.split_once('-') {
+                    w_tag == t
+                } else {
+                    false
+                }
+            })
+            .map(|w| {
+                if let Some((site, _)) = w.split_once('-') {
+                    format!("{}", site)
+                } else {
+                    w.clone()
+                }
+            })
+            .collect::<Vec<String>>()
+    } else {
+        websites
+            .into_iter()
+            .map(|w| {
+                if let Some((site, tag)) = w.split_once('-') {
+                    format!("({}) {}", tag, site)
+                } else {
+                    w.clone()
+                }
+            })
+            .collect::<Vec<String>>()
+    };
+
+    if websites.is_empty() {
+        println!("{}", "No passwords found for the specified tag.".red());
         return Ok(None);
     }
 
@@ -148,14 +188,14 @@ pub fn search_password(config_dir: &str) -> Result<Option<String>, Box<dyn std::
         let trimmed_selection = selection.trim();
 
         if trimmed_selection.is_empty() {
-            println!("No selection made.");
+            println!("{}", "No selection made.".red());
             Ok(None)
         } else {
             Ok(Some(trimmed_selection.to_string()))
         }
     } else {
         // Exit code 130 typically means the user pressed Esc/Ctrl-C
-        println!("\n❌ Selection canceled or fzf failed.");
+        println!("{}", "Selection canceled or fzf failed.".red());
         Ok(None)
     }
 }
