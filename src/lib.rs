@@ -447,6 +447,41 @@ pub fn import_key(file_path: &str) -> Result<(), SilicateError> {
     println!("Key imported and stored in keyring.");
     Ok(())
 }
+
+/// This function will rename a password file in the config directory.
+/// Retagging will be handled in another function.
+pub fn rename_password_file(
+    config_dir: &str,
+    old_website: &str,
+    new_website: &str,
+) -> Result<(), SilicateError> {
+    let old_file_path = find_password_file(config_dir, old_website)?.ok_or_else(|| {
+        SilicateError::IoError(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Password file for '{}' not found", old_website),
+        ))
+    })?;
+
+    let (_, tag) = if let Some((base, t)) = old_file_path.split_once('-') {
+        (base, Some(t))
+    } else {
+        (old_file_path.as_str(), None)
+    };
+
+    let old_file_path = std::path::Path::new(config_dir).join(&old_file_path);
+
+    let new_file_name = if let Some(t) = tag {
+        format!("{}-{}.bin", new_website, t)
+    } else {
+        format!("{}.bin", new_website)
+    };
+
+    let new_file_path = std::path::Path::new(config_dir).join(new_file_name);
+
+    std::fs::rename(old_file_path, new_file_path)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
