@@ -1,7 +1,5 @@
-1. Tag system
-2. List with --json and --tag
-3. Password Generator
-4. Import Exporter
-5. Init with more interactivity, like vault path
-6. Import/Export Func
-7. Updating Password Entries
+1. List with --json and --tag
+2. Password Generator
+3. Init with more interactivity, like vault path
+4. Import/Export Func
+5. Updating Password Entries

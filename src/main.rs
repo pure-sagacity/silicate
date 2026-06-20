@@ -3,10 +3,8 @@ const PASSWORD_DIRECTORY: &str = ".silicate/";
 use clap::{Parser, Subcommand};
 use colored::*;
 use rpassword::prompt_password_with_config;
-use silicate::{
-    check_fzf_installed, derive_key_from_password, encrypt_passwd, generate_fallback_key,
-    generate_key, is_keyring_available, retrieve_key_from_keyring, store_key_in_keyring,
-};
+use silicate::*;
+use std::string::ToString;
 use std::{
     fs,
     io::{self, Read, Write},
@@ -23,6 +21,10 @@ enum Command {
 
         #[clap(long)]
         multiline: bool,
+
+        // Short for tag
+        #[clap(long, short = 't')]
+        tag: Option<String>,
     },
 
     Delete {
@@ -41,6 +43,9 @@ enum Command {
     Search {
         #[clap(long)]
         display: bool,
+
+        #[clap(long, short = 't')]
+        tag: Option<String>,
     },
 }
 
@@ -160,7 +165,11 @@ fn main() {
     let cli = CLI::parse();
     match &cli.command {
         Some(c) => match c {
-            Command::Insert { website, multiline } => {
+            Command::Insert {
+                website,
+                multiline,
+                tag: option_tag,
+            } => {
                 let password = if *multiline {
                     println!("Enter the password (press Ctrl+D twice to finish):");
                     let mut password = String::new();
@@ -177,11 +186,19 @@ fn main() {
                 let (cipher_bytes, nonce_bytes) =
                     encrypt_passwd(&key.try_into().unwrap(), password).unwrap();
 
-                fs::write(
-                    format!("{}{}.bin", config_dir(), website),
-                    [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
-                )
-                .unwrap();
+                if let Some(tag) = option_tag {
+                    fs::write(
+                        format!("{}{}-{}.bin", config_dir(), website, tag),
+                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                    )
+                    .unwrap();
+                } else {
+                    fs::write(
+                        format!("{}{}.bin", config_dir(), website),
+                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                    )
+                    .unwrap();
+                }
             }
             Command::Delete { website } => {
                 let default_letter = "N".to_string().italic().bold();
@@ -291,7 +308,10 @@ fn main() {
                     );
                 }
             }
-            Command::Search { display } => {
+            Command::Search {
+                display,
+                tag: option_tag,
+            } => {
                 if !check_fzf_installed() {
                     let msg = "fzf is not installed or not found in PATH. Please install fzf to use the search feature.".to_string().red();
                     println!("{}", msg);
@@ -299,10 +319,15 @@ fn main() {
                     return;
                 }
 
-                match silicate::search_password(&config_dir()) {
+                match silicate::search_password(&config_dir(), option_tag) {
                     Ok(Some(selection)) => {
                         let key = get_key();
-                        let data = fs::read(format!("{}{}.bin", config_dir(), selection)).unwrap();
+                        let data = if let Some(tag) = option_tag {
+                            fs::read(format!("{}{}-{}.bin", config_dir(), selection, tag))
+                        } else {
+                            fs::read(format!("{}{}.bin", config_dir(), selection))
+                        }
+                        .unwrap();
                         let (nonce_bytes, cipher_bytes) = data.split_at(12);
                         let password = silicate::decrypt_passwd(
                             &key.try_into().unwrap(),
@@ -347,7 +372,17 @@ fn main() {
             } else {
                 println!("Stored passwords for the following websites:");
                 for site in websites {
-                    println!("{}", format!("- {}", site).bold());
+                    let (site, tag) = if let Some((s, t)) = site.split_once('-') {
+                        (s.to_string(), Some(t.to_string()))
+                    } else {
+                        (site, None)
+                    };
+                    if let Some(tag) = tag {
+                        let tag = tag.dimmed().italic();
+                        println!("{}", format!("- ({}) {}", tag, site));
+                    } else {
+                        println!("{}", format!("- {}", site));
+                    }
                 }
 
                 println!(
