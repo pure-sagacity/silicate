@@ -98,6 +98,8 @@ pub fn is_keyring_available() -> bool {
     entry.is_ok()
 }
 
+/// This function lists all the password files in the config directory, excluding the salt file.
+/// It returns a vector of website names (without the .bin extension).
 pub fn list_passwords(config_dir: &str) -> Vec<String> {
     let mut websites = Vec::new();
     if let Ok(entries) = std::fs::read_dir(config_dir) {
@@ -112,10 +114,12 @@ pub fn list_passwords(config_dir: &str) -> Vec<String> {
     websites
 }
 
+/// This function checks if fzf is installed on the system by trying to find its path.
 pub fn check_fzf_installed() -> bool {
     which::which("fzf").is_ok()
 }
 
+/// This function takes the config directory and an optional tag, lists the passwords, filters them by tag if provided,
 pub fn search_password(
     config_dir: &str,
     tag: &Option<String>,
@@ -199,6 +203,7 @@ pub fn search_password(
     }
 }
 
+/// This function generates a random password of the specified length. If use_symbols is true, it includes symbols in the password.
 pub fn generate_password(length: usize, use_symbols: bool) -> String {
     if length == 0 {
         return String::new();
@@ -239,6 +244,58 @@ fn sample_from_pool(pool: &[u8], length: usize) -> String {
 
     result
 }
+
+pub fn update_password(
+    config_dir: &str,
+    key: &[u8; 32],
+    website: &str,
+    tag: Option<&str>,
+    new_plaintext: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (new_ciphertext, new_nonce) =
+        encrypt_passwd(key, new_plaintext).map_err(|e| format!("Encryption failed: {:?}", e))?;
+    let mut combined_data = Vec::new();
+    combined_data.extend_from_slice(&new_nonce);
+    combined_data.extend_from_slice(&new_ciphertext);
+    update_entry(config_dir, website, tag, &hex::encode(combined_data))?;
+    Ok(())
+}
+
+fn update_entry(
+    config_dir: &str,
+    website: &str,
+    tag: Option<&str>,
+    new_data: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let filename = if let Some(t) = tag {
+        format!("{}-{}.bin", website, t)
+    } else {
+        format!("{}.bin", website)
+    };
+    let filepath = std::path::Path::new(config_dir).join(filename);
+    std::fs::write(filepath, new_data)?;
+    Ok(())
+}
+
+pub fn find_password_file(config_dir: &str, target_website: &str) -> Option<String> {
+    let passwords = list_passwords(config_dir);
+
+    passwords.into_iter().find(|filename| {
+        // If it's an exact match (no tag)
+        if filename == target_website {
+            return true;
+        }
+
+        // If it has a tag, check if the part before the first '-' matches
+        if let Some((base_website, _tag)) = filename.split_once('-') {
+            if base_website == target_website {
+                return true;
+            }
+        }
+
+        false
+    })
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_fallback_key_derivation() {
-        let password = "testpassword";
+        let password = "test_password";
         let (derived_key, salt) = generate_fallback_key(password);
         let derived_key_again = derive_key_from_password(password, &salt);
         assert_eq!(derived_key, derived_key_again);
