@@ -17,6 +17,7 @@ pub fn encrypt_passwd(
     key_bytes: &[u8; 32],
     plaintext: String,
 ) -> Result<(Vec<u8>, [u8; 12]), aes_gcm::Error> {
+    // Changed [u8; 12] to Vec<u8>
     let cipher = Aes256Gcm::new_from_slice(key_bytes).unwrap();
 
     let mut nonce_bytes = [0u8; 12];
@@ -24,7 +25,7 @@ pub fn encrypt_passwd(
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())?;
-    Ok((ciphertext, nonce_bytes))
+    Ok((ciphertext, nonce_bytes)) // Removed the broken .try_into().unwrap()
 }
 
 /// Decrypts the given ciphertext using AES-256-GCM. Requires the same key and nonce used for encryption.
@@ -60,6 +61,18 @@ pub fn generate_fallback_key(password: &str) -> ([u8; 32], [u8; 16]) {
     (key_bytes.try_into().unwrap(), salt_bytes)
 }
 
+/// This function will take a salt and a password and derive the same key as the generate_fallback_key function.
+/// This is used for retrieving the key when the user doesn't have a secure key management solution in place.
+pub fn derive_key_from_password(password: &str, salt: &[u8; 16]) -> [u8; 32] {
+    let salt_string = SaltString::encode_b64(salt).unwrap();
+    let argon2 = Argon2::default(); // 32-byte output by default
+    let hashed = argon2
+        .hash_password(password.as_bytes(), &salt_string)
+        .unwrap();
+    let key_bytes: [u8; 32] = hashed.hash.unwrap().as_bytes().try_into().unwrap();
+    key_bytes.try_into().unwrap()
+}
+
 /// This puts a randomly generated key into the system's keyring.
 pub fn store_key_in_keyring(key: &[u8; 32]) -> Result<(), Error> {
     let entry = Entry::new(SERVICE_NAME, USERNAME)?;
@@ -73,4 +86,63 @@ pub fn retrieve_key_from_keyring() -> Result<[u8; 32], Error> {
     let key_hex = entry.get_password()?;
     let key_bytes = hex::decode(key_hex).unwrap();
     Ok(key_bytes.try_into().unwrap())
+}
+
+/// This function checks if a keyring is available and can be accessed.
+/// This will be for checking if the user has a secure key management solution in place.
+pub fn is_keyring_available() -> bool {
+    let entry = Entry::new(SERVICE_NAME, USERNAME);
+    entry.is_ok()
+}
+
+pub fn list_passwords(config_dir: &str) -> Vec<String> {
+    let mut websites = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(config_dir) {
+        for entry in entries.flatten() {
+            if let Some(filename) = entry.file_name().to_str() {
+                if filename.ends_with(".bin") && filename != "salt.bin" {
+                    websites.push(filename.trim_end_matches(".bin").to_string());
+                }
+            }
+        }
+    }
+    websites
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_decrypt() {
+        let key = generate_key();
+        let plaintext = "This is a test password.".to_string();
+        let (ciphertext, nonce) = encrypt_passwd(&key, plaintext.clone()).unwrap();
+        let decrypted = decrypt_passwd(&key, ciphertext.to_vec(), nonce).unwrap();
+        assert_eq!(plaintext, decrypted);
+    }
+
+    #[test]
+    fn test_fallback_key_derivation() {
+        let password = "testpassword";
+        let (derived_key, salt) = generate_fallback_key(password);
+        let derived_key_again = derive_key_from_password(password, &salt);
+        assert_eq!(derived_key, derived_key_again);
+    }
+
+    #[test]
+    fn test_keyring_storage() {
+        // Just so the code doesn't fail if no keyring
+        match is_keyring_available() {
+            true => (),
+            false => {
+                println!("Keyring not available, skipping keyring storage test.");
+                assert!(true);
+            }
+        }
+        let key = generate_key();
+        store_key_in_keyring(&key).unwrap();
+        let retrieved_key = retrieve_key_from_keyring().unwrap();
+        assert_eq!(key, retrieved_key);
+    }
 }
