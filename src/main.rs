@@ -861,7 +861,7 @@ fn main() {
                             .green()
                         ),
                         Err(e) => {
-                            println!("{}", format!("Failed to rename password file: {}", e).red());
+                            println!("{}", format!("Failed to rename password file, check log file (/tmp/silicate.log).").red());
                             write_to_logs(&format!("Failed to rename password file: {}", e));
                         }
                     };

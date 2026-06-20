@@ -461,7 +461,7 @@ pub fn rename_password_file(
             std::io::ErrorKind::NotFound,
             format!("Password file for '{}' not found", old_website),
         ))
-    })?;
+    })? + ".bin";
 
     let tag = if let Some(t) = tag {
         Some(t.clone())
