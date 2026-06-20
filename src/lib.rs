@@ -417,7 +417,7 @@ pub fn find_password_file(
     }))
 }
 
-/// This functon will export the key from the keyring to a file in the config directory.
+/// This function will export the key from the keyring to a file in the config directory.
 /// This is for users who need to backup their key or export a key that was generated on a different machine.
 pub fn export_key(file_path: &Option<String>) -> Result<(), SilicateError> {
     let key = retrieve_key_from_keyring()?;

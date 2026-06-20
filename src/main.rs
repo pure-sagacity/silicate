@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use colored::*;
 use rpassword::prompt_password_with_config;
 use silicate::*;
+use std::process;
 use std::string::ToString;
 use std::{
     fs,
@@ -129,12 +130,17 @@ fn create_dir() {
 fn write_to_logs(msg: &str) {
     let path = "/tmp/silicate.log";
 
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .expect("Failed to open file");
-
+    let mut file = match fs::OpenOptions::new().create(true).append(true).open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            let msg = format!("Failed to open log file at: {}", path)
+                .to_string()
+                .red();
+            println!("{}", msg);
+            write_to_logs(&format!("Failed to open log file: {}", e));
+            return;
+        }
+    };
     let msg = msg.to_string() + "\n";
 
     // Write data
@@ -146,7 +152,7 @@ fn write_to_logs(msg: &str) {
                 .red();
             println!("{}", msg);
         }
-    }
+    };
 }
 
 fn config() -> rpassword::Config {
@@ -171,11 +177,22 @@ fn get_key() -> Vec<u8> {
                     if t {
                         let salt = fs::read(config_dir() + "salt.bin").unwrap();
                         let password = get_password("Enter password to derive key: ");
-                        let key = derive_key_from_password(
-                            &password,
-                            &salt.try_into().expect("Failed to convert salt."),
-                        )
-                        .expect("Failed to derive key.");
+                        let key =
+                            match derive_key_from_password(&password, &salt.try_into().unwrap()) {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    let msg =
+                                        format!("Failed to read salt for key derivation: {}", e)
+                                            .to_string()
+                                            .red();
+                                    println!("{}", msg);
+                                    write_to_logs(&format!(
+                                        "Failed to read salt for key derivation: {}",
+                                        e
+                                    ));
+                                    process::exit(1);
+                                }
+                            };
                         return key.to_vec();
                     } else {
                         let msg = format!(
@@ -253,7 +270,14 @@ fn main() {
                 );
                 io::stdout().flush().unwrap();
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).unwrap();
+                match io::stdin().read_line(&mut input) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        println!("Failed to read input. Deletion implicitly cancelled.");
+                        write_to_logs("Failed to read input during deletion confirmation.");
+                        return;
+                    }
+                }
 
                 if input.trim().to_lowercase() == "y" {
                     // 1. Scan the directory using your existing helper to look for a matching name
@@ -315,11 +339,22 @@ fn main() {
                     println!("{}", msg);
                 } else {
                     // Copy to clipboard
-                    let mut clipboard =
-                        arboard::Clipboard::new().expect("Failed to copy password.");
-                    clipboard
-                        .set_text(password)
-                        .expect("Failed to copy password.");
+                    let mut clipboard = match arboard::Clipboard::new() {
+                        Ok(c) => c,
+                        Err(e) => {
+                            println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to access clipboard: {}", e));
+                            return;
+                        }
+                    };
+                    match clipboard.set_text(password) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to copy password to clipboard: {}", e));
+                            return;
+                        }
+                    } // <--- THIS BRACE WAS MISSING!
 
                     println!("{}", "Password copied to clipboard.".green());
 
@@ -366,8 +401,14 @@ fn main() {
                     }
 
                     let password = get_password("Enter a password to derive the encryption key: ");
-                    let (_, salt) =
-                        generate_fallback_key(&password).expect("Failed to generate fallback key.");
+                    let (_, salt) = match generate_fallback_key(&password) {
+                        Ok((_, s)) => ((), s),
+                        Err(e) => {
+                            println!("{}", format!("Failed to generate fallback key, please check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to generate fallback key: {}", e));
+                            return;
+                        }
+                    };
 
                     create_dir();
                     fs::write(config_dir() + "salt.bin", &salt).unwrap();
@@ -411,11 +452,25 @@ fn main() {
                             println!("{}", msg);
                         } else {
                             // Copy to clipboard
-                            let mut clipboard =
-                                arboard::Clipboard::new().expect("Failed to copy password.");
-                            clipboard
-                                .set_text(password)
-                                .expect("Failed to copy password.");
+                            let mut clipboard = match arboard::Clipboard::new() {
+                                Ok(c) => c,
+                                Err(e) => {
+                                    println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                    write_to_logs(&format!("Failed to access clipboard: {}", e));
+                                    return;
+                                }
+                            };
+                            match clipboard.set_text(password) {
+                                Ok(_) => (),
+                                Err(e) => {
+                                    println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                    write_to_logs(&format!(
+                                        "Failed to copy password to clipboard: {}",
+                                        e
+                                    ));
+                                    return;
+                                }
+                            }
 
                             println!("{}", "Password copied to clipboard.".green());
 
@@ -471,11 +526,22 @@ fn main() {
                     println!("{}", msg);
                 } else {
                     // Copy to clipboard
-                    let mut clipboard =
-                        arboard::Clipboard::new().expect("Failed to copy password.");
-                    clipboard
-                        .set_text(password)
-                        .expect("Failed to copy password.");
+                    let mut clipboard = match arboard::Clipboard::new() {
+                        Ok(c) => c,
+                        Err(e) => {
+                            println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to access clipboard: {}", e));
+                            return;
+                        }
+                    };
+                    match clipboard.set_text(password) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to copy password to clipboard: {}", e));
+                            return;
+                        }
+                    }
 
                     println!("{}", "Generated password copied to clipboard.".green());
 
@@ -488,22 +554,71 @@ fn main() {
                 }
             }
             Command::Update { website } => {
-                if let Some(path) = find_password_file(&config_dir(), website)
-                    .expect("Failed to find the password to update.")
-                {
-                    let key: &[u8; 32] = &get_key().as_slice().try_into().unwrap();
+                // 1. Properly handle the Result from find_password_file first
+                let file_path_option = match find_password_file(&config_dir(), website) {
+                    Ok(path) => path,
+                    Err(e) => {
+                        println!("{}", format!("Error finding password file for '{}': check log file (/tmp/silicate.log).", website.italic()).red());
+                        write_to_logs(&format!(
+                            "Error finding password file for '{}': {}",
+                            website, e
+                        ));
+                        return;
+                    }
+                };
+
+                // 2. Now unwrap the Option safely using if let
+                if let Some(path) = file_path_option {
+                    // 3. FIX: get_key returns a Vec<u8>. We just need a slice reference,
+                    // no need to attempt an explicit array conversion that fails on type mismatch.
+                    let key_vec = get_key();
+                    let key_bytes = key_vec.as_slice();
+
+                    let key: &[u8; 32] = match key_bytes.try_into() {
+                        Ok(k) => k,
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while getting key. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while processing the key: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    };
+
                     let new_password = get_password("Enter the new password: ");
 
-                    let (new_cipher_bytes, new_nonce_bytes) =
-                        encrypt_passwd(key, new_password).unwrap();
+                    let (new_cipher_bytes, new_nonce_bytes) = match encrypt_passwd(
+                        key,
+                        new_password,
+                    ) {
+                        Ok((c, n)) => (c, n),
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while encrypting the new password. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while encrypting the new password: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    };
 
-                    let path = format!("{}{}.bin", config_dir(), path);
+                    let full_path = format!("{}{}.bin", config_dir(), path);
 
-                    fs::write(
-                        path,
+                    match fs::write(
+                        full_path,
                         [new_nonce_bytes.as_slice(), new_cipher_bytes.as_slice()].concat(),
-                    )
-                    .unwrap();
+                    ) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("{}", format!("Error occurred while writing the updated password to disk. Check log file (/tmp/silicate.log).").red());
+                            write_to_logs(&format!(
+                                "Error occurred while writing the updated password to disk: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    }
 
                     println!("{}", "Password updated successfully.".green());
                 } else {
@@ -517,13 +632,32 @@ fn main() {
                         Err(e) => eprintln!("Failed to export key: {}", e),
                     }
                 } else {
-                    let secrets = json::get_secrets(
-                        &config_dir(),
-                        list_passwords(&config_dir()).expect("Failed to get passwords."),
-                    )
-                    .expect("Failed to get secrets from passwords.");
+                    let passwords = match list_passwords(&config_dir()) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            println!("{}", format!("Failed to list passwords for export. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to list passwords for export: {}", e));
+                            return;
+                        }
+                    };
 
-                    json::export_secrets(secrets, &file_path);
+                    let secrets = match json::get_secrets(&config_dir(), passwords) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            println!("{}", format!("Failed to get secrets from passwords. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to get secrets from passwords: {}", e));
+                            return;
+                        }
+                    };
+
+                    match json::export_secrets(secrets, &file_path) {
+                        Ok(()) => (),
+                        Err(e) => {
+                            println!("{}", format!("Failed to export secrets to JSON file. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to export secrets to JSON file: {}", e));
+                            return;
+                        }
+                    }
                 }
             }
             Command::Import { file_path, key } => {
@@ -533,10 +667,26 @@ fn main() {
                         Err(e) => eprintln!("Failed to import key: {}", e),
                     }
                 } else {
-                    let secrets = json::import_secrets(file_path.to_string())
-                        .expect("Failed to import secrets from JSON file.");
+                    let secrets = match json::import_secrets(file_path.to_string()) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            println!("{}", format!("Failed to import secrets from JSON file. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!(
+                                "Failed to import secrets from JSON file: {}",
+                                e
+                            ));
+                            return;
+                        }
+                    };
 
-                    json::write_secrets(&config_dir(), secrets);
+                    match json::write_secrets(&config_dir(), secrets) {
+                        Ok(()) => println!("Secrets imported successfully."),
+                        Err(e) => {
+                            println!("{}", format!("Failed to write secrets. Check log file (/tmp/silicate.log) for more information.").red());
+                            write_to_logs(&format!("Failed to write secrets: {}", e));
+                            return;
+                        }
+                    }
                 }
             }
         },
