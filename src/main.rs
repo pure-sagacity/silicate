@@ -159,7 +159,7 @@ fn main() {
         Some(c) => match c {
             Command::Insert { website, multiline } => {
                 let password = if *multiline {
-                    println!("Enter the password (press Ctrl+D to finish):");
+                    println!("Enter the password (press Ctrl+D twice to finish):");
                     let mut password = String::new();
                     io::stdin().read_to_string(&mut password).unwrap();
                     password = password.trim().to_string();
