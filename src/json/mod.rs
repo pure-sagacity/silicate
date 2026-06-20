@@ -15,7 +15,7 @@ pub fn get_secrets(config_dir: &str, websites: Vec<String>) -> Vec<Secret> {
     for website in websites {
         // (e.g., "github" or "github-tag")
         let file_identifier = find_password_file(config_dir, &website.to_string()).unwrap();
-        
+
         let full_path = format!("{}{}.bin", config_dir, file_identifier);
 
         let mut split_identifier = file_identifier.split('-');
@@ -38,13 +38,16 @@ pub fn get_secrets(config_dir: &str, websites: Vec<String>) -> Vec<Secret> {
 /// This function writes the secrets in memory to files in the config directory.
 pub fn write_secrets(config_dir: &str, secrets: Vec<Secret>) {
     for secret in secrets {
-        let path = format!(
-            "{}{}-{}",
-            config_dir,
-            secret.name,
-            secret.tag.clone().unwrap_or_default()
-        );
-        std::fs::write(&path, secret.ciphertext).unwrap();
+        let path = if let Some(tag) = secret.tag.clone() {
+            format!("{}{}-{}.bin", config_dir, secret.name, tag)
+        } else {
+            format!("{}{}.bin", config_dir, secret.name)
+        };
+
+        let binary_data = hex::decode(&secret.ciphertext)
+            .expect("Failed to decode hexadecimal ciphertext during import");
+
+        std::fs::write(&path, binary_data).unwrap();
     }
 }
 
