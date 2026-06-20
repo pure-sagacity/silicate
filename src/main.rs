@@ -10,6 +10,11 @@ use std::{
     io::{self, Read, Write},
 };
 #[derive(Parser)]
+#[clap(
+    name = "Silicate",
+    version,
+    about = "A simple command-line password manager."
+)]
 struct CLI {
     #[clap(subcommand)]
     command: Option<Command>,
@@ -46,6 +51,22 @@ enum Command {
 
         #[clap(long, short = 't')]
         tag: Option<String>,
+    },
+
+    Generate {
+        website: String,
+
+        #[clap(long, short = 't')]
+        tag: Option<String>,
+
+        #[clap(long)]
+        length: Option<usize>,
+
+        #[clap(long = "no-symbols")]
+        no_symbols: bool,
+
+        #[clap(long)]
+        display: bool,
     },
 }
 

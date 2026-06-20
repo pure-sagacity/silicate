@@ -1,6 +1,3 @@
-use std::io::Write;
-use std::process::{Command, Stdio};
-
 use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::{
     Aes256Gcm, Nonce,
@@ -12,6 +9,8 @@ use argon2::{
 };
 use colored::*;
 use keyring::{Entry, Error};
+use std::io::Write;
+use std::process::{Command, Stdio};
 
 const SERVICE_NAME: &str = "silicate";
 const USERNAME: &str = "default";
@@ -200,6 +199,46 @@ pub fn search_password(
     }
 }
 
+pub fn generate_password(length: usize, use_symbols: bool) -> String {
+    if length == 0 {
+        return String::new();
+    }
+
+    let letters_and_digits = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let symbols = b"!@#$%^&*()_+-=[]{}|;:,.<>?";
+
+    if use_symbols {
+        let mut combined = Vec::with_capacity(letters_and_digits.len() + symbols.len());
+        combined.extend_from_slice(letters_and_digits);
+        combined.extend_from_slice(symbols);
+        return sample_from_pool(&combined, length);
+    }
+
+    sample_from_pool(letters_and_digits, length)
+}
+
+fn sample_from_pool(pool: &[u8], length: usize) -> String {
+    let mut rng = OsRng;
+    let mut result = String::with_capacity(length);
+
+    let pool_len = pool.len() as u32;
+    // To prevent modulo bias, calculate the maximum allowable value
+    // that fits perfectly into multiples of our pool length.
+    let zone = u32::MAX - (u32::MAX % pool_len);
+
+    while result.len() < length {
+        // Use RngCore's next_u32 directly (always available on OsRng)
+        let random_val = rng.next_u32();
+
+        // Rejection sampling: if it falls in the biased remainder zone, skip it
+        if random_val < zone {
+            let idx = (random_val % pool_len) as usize;
+            result.push(pool[idx] as char);
+        }
+    }
+
+    result
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,5 +274,27 @@ mod tests {
         store_key_in_keyring(&key).unwrap();
         let retrieved_key = retrieve_key_from_keyring().unwrap();
         assert_eq!(key, retrieved_key);
+    }
+
+    #[test]
+    fn test_password_generation() {
+        let password = generate_password(16, true);
+        assert_eq!(password.len(), 16);
+        assert!(
+            password
+                .chars()
+                .any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(c))
+        );
+    }
+
+    #[test]
+    fn password_generation_no_symbols() {
+        let password = generate_password(16, false);
+        assert_eq!(password.len(), 16);
+        assert!(
+            !password
+                .chars()
+                .any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(c))
+        );
     }
 }

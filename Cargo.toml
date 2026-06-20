@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+rand_core = "0.10.1"
 aes-gcm = "0.10.3"
 tokio = { version = "1.52.3", features = ["full"] }
 argon2 = "0.5.3"
