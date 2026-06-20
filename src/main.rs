@@ -10,6 +10,11 @@ use std::{
     io::{self, Read, Write},
 };
 #[derive(Parser)]
+#[clap(
+    name = "Silicate",
+    version,
+    about = "A simple command-line password manager."
+)]
 struct CLI {
     #[clap(subcommand)]
     command: Option<Command>,
@@ -46,6 +51,22 @@ enum Command {
 
         #[clap(long, short = 't')]
         tag: Option<String>,
+    },
+
+    Generate {
+        website: String,
+
+        #[clap(long, short = 't')]
+        tag: Option<String>,
+
+        #[clap(long)]
+        length: Option<usize>,
+
+        #[clap(long = "no-symbols")]
+        no_symbols: bool,
+
+        #[clap(long)]
+        display: bool,
     },
 }
 
@@ -362,6 +383,59 @@ fn main() {
                         println!("{}", format!("Error during search: {}", e).red());
                         write_to_logs(&format!("Error during search: {}", e));
                     }
+                }
+            }
+            Command::Generate {
+                website,
+                tag,
+                length,
+                no_symbols,
+                display,
+            } => {
+                let symbols = !*no_symbols;
+
+                let length = length.unwrap_or(16); // Default length of 16 if not specified
+
+                let password = silicate::generate_password(length, symbols);
+
+                let key = get_key();
+
+                let (cipher_bytes, nonce_bytes) =
+                    encrypt_passwd(&key.try_into().unwrap(), password.clone()).unwrap();
+
+                if let Some(tag) = tag {
+                    fs::write(
+                        format!("{}{}-{}.bin", config_dir(), website, tag),
+                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                    )
+                    .unwrap();
+                } else {
+                    fs::write(
+                        format!("{}{}.bin", config_dir(), website),
+                        [nonce_bytes.as_slice(), cipher_bytes.as_slice()].concat(),
+                    )
+                    .unwrap();
+                }
+
+                if *display {
+                    let msg = format!("Generated password for {}: {}", website, password.bold());
+                    println!("{}", msg);
+                } else {
+                    // Copy to clipboard
+                    let mut clipboard =
+                        arboard::Clipboard::new().expect("Failed to copy password.");
+                    clipboard
+                        .set_text(password)
+                        .expect("Failed to copy password.");
+
+                    println!("{}", "Generated password copied to clipboard.".green());
+
+                    let msg = format!(
+                        "To show the generated password, use `silicate show {} --display`",
+                        website
+                    );
+
+                    println!("{}", msg.dimmed());
                 }
             }
         },
