@@ -2,6 +2,16 @@
 name = "silicate"
 version = "0.1.0"
 edition = "2024"
+description = "A simplistic password manager, built in Rust."
+license = "MIT"
+repository = "https://github.com/pure-sagacity/silicate"
+readme = "README.md"
+keywords = ["password", "manager", "cli", "tool", "encryption"]
+categories = ["command-line-utilies"]
+
+[[bin]]
+name = "silicate"
+path = "./src/main.rs"
 
 [dependencies]
 rand_core = "0.10.1"
