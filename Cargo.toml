@@ -7,7 +7,6 @@ license = "MIT"
 repository = "https://github.com/pure-sagacity/silicate"
 readme = "README.md"
 keywords = ["password", "manager", "cli", "tool", "encryption"]
-categories = ["command-line-utilies"]
 
 [[bin]]
 name = "silicate"
