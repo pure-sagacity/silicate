@@ -1043,8 +1043,17 @@ fn main() {
             }
         },
         None => {
+            let passwords = match list_passwords(&config_dir()) {
+                Ok(passwords) => passwords,
+                Err(e) => {
+                    let msg = format!("Failed to get passwords: {e}").dimmed().red();
+                    println!("{msg}");
+                    return;
+                }
+            };
+
             let mut terminal = ratatui::init();
-            let mut app = tui::App::default();
+            let mut app = tui::App::new(passwords);
 
             match app.run(&mut terminal) {
                 Ok(_) => {
