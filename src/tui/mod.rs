@@ -82,8 +82,15 @@ impl App {
         let [list_area, view_area] = horizontal_area;
 
         let items = self.entries.iter().map(|item| ListItem::new(item.clone())); // Ensure items map cleanly
-        let list =
-            List::new(items).block(Block::default().title("Passwords").borders(Borders::ALL));
+        let list = List::new(items)
+            .block(Block::default().title("Passwords").borders(Borders::ALL))
+            .highlight_symbol("> ")
+            .highlight_style(
+                Style::default()
+                    .fg(ratatui::style::Color::Green)
+                    .add_modifier(Modifier::REVERSED),
+            )
+            .highlight_spacing(HighlightSpacing::Always);
 
         frame.render_stateful_widget(list, list_area, &mut self.state);
     }
