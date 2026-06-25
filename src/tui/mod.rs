@@ -1,6 +1,5 @@
 use std::{io, process};
 
-use aes_gcm::Key;
 use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     DefaultTerminal, Frame,
