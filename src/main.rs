@@ -11,6 +11,7 @@ use std::{
     io::{self, Read, Write},
 };
 mod json;
+mod tui;
 #[derive(Parser)]
 #[clap(
     name = "Silicate",
@@ -1042,30 +1043,17 @@ fn main() {
             }
         },
         None => {
-            let websites =
-                silicate::list_passwords(&config_dir()).expect("Failed to list passwords.");
-            if websites.is_empty() {
-                println!("{}", "No passwords stored yet.".yellow());
-            } else {
-                println!("Stored passwords for the following websites:");
-                for site in websites {
-                    let (site, tag) = if let Some((s, t)) = site.split_once('-') {
-                        (s.to_string(), Some(t.to_string()))
-                    } else {
-                        (site, None)
-                    };
-                    if let Some(tag) = tag {
-                        let tag = tag.dimmed().italic();
-                        println!("{}", format!("- ({}) {}", tag, site.green().bold()));
-                    } else {
-                        println!("{}", format!("- {}", site.green().bold()));
-                    }
-                }
+            let mut terminal = ratatui::init();
+            let mut app = tui::App::default();
 
-                println!(
-                    "{}",
-                    "Use `silicate show <website>` to view a password.".dimmed()
-                );
+            match app.run(&mut terminal) {
+                Ok(_) => {
+                    ratatui::restore();
+                }
+                Err(e) => {
+                    let msg = format!("Failed to open TUI. {}", e).red().bold();
+                    println!("{msg}");
+                }
             }
         }
     }
