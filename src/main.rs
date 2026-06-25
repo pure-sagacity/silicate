@@ -1052,8 +1052,10 @@ fn main() {
                 }
             };
 
+            let key = get_key().try_into().unwrap();
+
             let mut terminal = ratatui::init();
-            let mut app = tui::App::new(passwords);
+            let mut app = tui::App::new(passwords, key);
 
             match app.run(&mut terminal) {
                 Ok(_) => {
