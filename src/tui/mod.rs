@@ -1,5 +1,6 @@
 use std::{io, process};
 
+use aes_gcm::Key;
 use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -92,6 +93,8 @@ impl App {
         if key_event.kind == KeyEventKind::Press {
             match key_event.code {
                 KeyCode::Char('q') => self.exit = true,
+                KeyCode::Up => self.previous(),
+                KeyCode::Down => self.next(),
                 _ => {}
             }
         }
