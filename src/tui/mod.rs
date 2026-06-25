@@ -35,7 +35,7 @@ impl App {
     fn handle_key(&mut self, key_event: KeyEvent) -> io::Result<()> {
         if key_event.kind == KeyEventKind::Press {
             match key_event.code {
-                KeyCode::Char('q') => self.exit = false,
+                KeyCode::Char('q') => self.exit = true,
                 _ => {}
             }
         }
