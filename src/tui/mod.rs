@@ -99,7 +99,25 @@ impl App {
         let [list_area, view_area] = horizontal_area;
 
         let filtered = self.filtered_entries();
-        let items = filtered.iter().map(|item| ListItem::new((*item).clone()));
+
+        let items: Vec<ListItem> = filtered
+            .iter()
+            .map(|item_str| {
+                // Split the string into name and tag components by the hyphen
+                if let Some((name, tag)) = item_str.split_once('-') {
+                    // Trim whitespace to keep the layout clean
+                    let name_span = ratatui::text::Span::raw(format!("{} ", name.trim_end()));
+                    let tag_span = ratatui::text::Span::raw(format!("({})", tag.trim())).dim();
+
+                    // Combine them into a single Line
+                    let line = ratatui::text::Line::from(vec![name_span, tag_span]);
+                    ListItem::new(line)
+                } else {
+                    // Fallback in case a string doesn't contain a hyphen
+                    ListItem::new((*item_str).clone())
+                }
+            })
+            .collect();
 
         let list = List::new(items)
             .block(Block::default().title("Passwords").borders(Borders::ALL))
