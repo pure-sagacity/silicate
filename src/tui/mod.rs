@@ -3,12 +3,23 @@ use std::{fs, io, process};
 use crossterm::event::{Event::Key, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     DefaultTerminal, Frame,
-    layout::{Constraint, Layout},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{
+        Block, Borders, Clear, HighlightSpacing, List, ListItem, ListState, Paragraph, Wrap,
+    },
 };
 use silicate::SilicateError;
+
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    Rect {
+        x: area.x + (area.width.saturating_sub(width)) / 2,
+        y: area.y + (area.height.saturating_sub(height)) / 2,
+        width,
+        height,
+    }
+}
 
 pub struct App {
     exit: bool,
@@ -81,18 +92,9 @@ impl App {
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
 
-        let main_layout = Layout::vertical([
-            Constraint::Min(0),
-            Constraint::Length(if self.is_searching { 3 } else { 0 }),
-        ])
-        .split(area);
-
-        let main_area = main_layout[0];
-        let search_area = main_layout[1];
-
         let horizontal_area =
             Layout::horizontal([Constraint::Percentage(25), Constraint::Percentage(75)])
-                .areas(main_area);
+                .areas(area);
 
         let [list_area, view_area] = horizontal_area;
 
@@ -111,7 +113,6 @@ impl App {
 
         frame.render_stateful_widget(list, list_area, &mut self.state);
 
-        // 3. Determine the decrypted content for the right pane
         let details_content = if let Some(selected_idx) = self.state.selected() {
             if let Some(entry_name) = self.entries.get(selected_idx) {
                 match self.get_decrypted_password(entry_name) {
@@ -151,6 +152,21 @@ impl App {
             .wrap(Wrap { trim: true });
 
         frame.render_widget(details_block, view_area);
+
+        if self.is_searching {
+            let popup = centered_rect(50, 3, area);
+
+            frame.render_widget(Clear, popup);
+
+            let input = Paragraph::new(self.search_query.as_str())
+                .block(Block::default().title(" Search ").borders(Borders::ALL))
+                .alignment(Alignment::Left);
+
+            frame.render_widget(input, popup);
+
+            // Cursor goes inside the box
+            frame.set_cursor_position((popup.x + 1 + self.search_query.len() as u16, popup.y + 1));
+        }
     }
 
     /// Helper method to fetch and decrypt the file for the TUI view pane
@@ -190,11 +206,28 @@ impl App {
 
     fn handle_key(&mut self, key_event: KeyEvent) -> io::Result<()> {
         if key_event.kind == KeyEventKind::Press {
-            match key_event.code {
-                KeyCode::Char('q') => self.exit = true,
-                KeyCode::Up => self.previous(),
-                KeyCode::Down => self.next(),
-                _ => {}
+            if self.is_searching {
+                match key_event.code {
+                    KeyCode::Esc => self.is_searching = false,
+                    KeyCode::Enter => {
+                        self.is_searching = false;
+                    }
+                    KeyCode::Backspace => {
+                        self.search_query.pop();
+                    }
+                    KeyCode::Char(c) => {
+                        self.search_query.push(c);
+                    }
+                    _ => {}
+                }
+            } else {
+                match key_event.code {
+                    KeyCode::Char('q') => self.exit = true,
+                    KeyCode::Char('/') => self.is_searching = true,
+                    KeyCode::Up => self.previous(),
+                    KeyCode::Down => self.next(),
+                    _ => {}
+                }
             }
         }
 
