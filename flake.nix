@@ -53,6 +53,8 @@
         in
         {
           default = naerskLib.buildPackage {
+            name = "silicate";
+            version = "1.1.0";
             src = ./.;
           };
         }
