@@ -1,14 +1,8 @@
 {
-  pkgs,
-  lib,
-  config,
-  inputs,
   ...
 }:
 
 {
-  packages = with pkgs; [ git ];
-
   languages.rust = {
     enable = true;
     lsp.enable = true;
@@ -22,6 +16,7 @@
   };
 
   git-hooks.hooks = {
+    shellcheck.enable = true;
     prettier.enable = true;
     nixfmt.enable = true;
     rustfmt.enable = true;
