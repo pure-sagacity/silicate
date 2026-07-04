@@ -219,7 +219,7 @@ fn get_key() -> Vec<u8> {
                 Ok(t) => {
                     if t {
                         let salt = fs::read(config_dir() + "salt.bin").unwrap();
-                        let password = get_password("Enter password to derive key: ");
+                        let password = get_password("Enter key password: ");
                         let key =
                             match derive_key_from_password(&password, &salt.try_into().unwrap()) {
                                 Ok(s) => s,
