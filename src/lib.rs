@@ -18,6 +18,7 @@ const USERNAME: &str = "default";
 
 #[derive(Debug)]
 pub enum SilicateError {
+    Plain(&'static str),
     KeyringError(keyring::Error),
     IoError(std::io::Error),
     HexError(hex::FromHexError),
@@ -29,6 +30,12 @@ pub enum SilicateError {
     Utf8Error(std::string::FromUtf8Error),
     Argon2PasswordHashError(argon2::password_hash::Error),
     TryFromSliceError(std::array::TryFromSliceError),
+}
+
+impl From<&'static str> for SilicateError {
+    fn from(err: &'static str) -> SilicateError {
+        SilicateError::Plain(err)
+    }
 }
 
 impl From<keyring::Error> for SilicateError {
@@ -116,6 +123,10 @@ impl std::fmt::Display for SilicateError {
                 write!(f, "Argon2 password hash error: {}", e)
             }
             SilicateError::StdioError(e) => write!(f, "Stdio error: {}", e),
+            SilicateError::Plain(e) => {
+                let msg = e.to_string();
+                write!(f, "Program Error: {msg}")
+            }
         }
     }
 }
@@ -260,7 +271,7 @@ pub fn search_password(
             })
             .map(|w| {
                 if let Some((site, _)) = w.split_once('-') {
-                    format!("{}", site)
+                    site.to_string()
                 } else {
                     w.clone()
                 }
