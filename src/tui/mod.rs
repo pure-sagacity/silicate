@@ -283,7 +283,19 @@ impl App {
             let query = self.search_query.to_lowercase();
             self.entries
                 .iter()
-                .filter(|entry| entry.to_lowercase().contains(&query))
+                .filter(|entry| {
+                    let entry_lc = entry.to_lowercase();
+                    match self.search_target {
+                        SearchTarget::Name => entry_lc
+                            .split_once('-')
+                            .map(|(name, _)| name.contains(&query))
+                            .unwrap_or_else(|| entry_lc.contains(&query)),
+                        SearchTarget::Tag => entry_lc
+                            .split_once('-')
+                            .map(|(_, tag)| tag.contains(&query))
+                            .unwrap_or(false),
+                    }
+                })
                 .cloned()
                 .collect()
         }
