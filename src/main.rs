@@ -1227,14 +1227,13 @@ fn main() {
             let mut terminal = ratatui::init();
             let mut app = tui::App::new(passwords, key);
 
-            match app.run(&mut terminal) {
-                Ok(_) => {
-                    ratatui::restore();
-                }
-                Err(e) => {
-                    let msg = format!("Failed to open TUI. {}", e).red().bold();
-                    println!("{msg}");
-                }
+            let result = app.run(&mut terminal);
+
+            ratatui::restore();
+
+            if let Err(e) = result {
+                let msg = format!("Failed to open TUI. {}", e).red().bold();
+                println!("{msg}");
             }
         }
     }
