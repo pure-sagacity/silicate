@@ -40,7 +40,7 @@ pub struct App {
 impl App {
     pub fn new(entries: Vec<String>, key: [u8; 32]) -> Self {
         let mut state = ListState::default();
-        state.select(Some(0));
+        state.select(None);
         App {
             exit: false,
             entries,
