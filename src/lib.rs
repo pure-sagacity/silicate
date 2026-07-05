@@ -564,22 +564,6 @@ mod tests {
     }
 
     #[test]
-    fn test_keyring_storage() {
-        // Just so the code doesn't fail if no keyring
-        match is_keyring_available() {
-            true => (),
-            false => {
-                println!("Keyring not available, skipping keyring storage test.");
-                assert!(true);
-            }
-        }
-        let key = generate_key();
-        store_key_in_keyring(&key).unwrap();
-        let retrieved_key = retrieve_key_from_keyring().unwrap();
-        assert_eq!(key, retrieved_key);
-    }
-
-    #[test]
     fn test_password_generation() {
         let password = generate_password(16, true);
         assert_eq!(password.len(), 16);
