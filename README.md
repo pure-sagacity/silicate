@@ -1,5 +1,7 @@
 # Silicate
 
+> Offical Website: [https://silicate.maariz.org](https://silicate.maariz.org)
+
 Silicate is a simple command-line password manager written in Rust.
 
 It stores encrypted secrets locally, supports keyring-based key storage when available, and falls back to password-derived keys when necessary. Silicate also provides tag support, search, stats, import/export, and password generation.

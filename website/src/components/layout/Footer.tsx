@@ -1,7 +1,8 @@
 const links = [
-  { label: "Contact", href: "#" },
-  { label: "Ko-fi", href: "#" },
-  { label: "GitHub", href: "#" },
+  { label: "Personal Website", href: "https://maariz.org" },
+  { label: "Ko-fi", href: "https://ko-fi.com/idle_river" },
+  { label: "GitHub", href: "https://github.com/pure-sagacity" },
+  { label: "Source", href: "https://github.com/pure-sagacity/silicate" },
 ];
 
 export function Footer() {
