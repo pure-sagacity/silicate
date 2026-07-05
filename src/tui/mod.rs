@@ -14,8 +14,8 @@ use silicate::SilicateError;
 
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     Rect {
-        x: area.x + (area.width.saturating_sub(width)) / 2,
-        y: area.y + (area.height.saturating_sub(height)) / 2,
+        x: area.x + area.width.saturating_sub(width) / 2,
+        y: area.y + area.height.saturating_sub(height) / 2,
         width,
         height,
     }
@@ -65,6 +65,13 @@ impl App {
     }
 
     pub fn previous(&mut self) {
+        let filtered_len = self.filtered_entries().len();
+
+        if filtered_len == 0 {
+            self.state.select(None);
+            return;
+        }
+
         let selected = self.state.selected().unwrap_or(0);
 
         let previous = if selected == 0 {
@@ -228,20 +235,26 @@ impl App {
             frame.render_widget(&input, popup);
 
             // Pin the cursor strictly to the query string line (top row of popup payload area)
-            frame.set_cursor_position((popup.x + 1 + self.search_query.len() as u16, popup.y + 1));
+            frame
+                .set_cursor_position((popup.x + 1 + (self.search_query.len() as u16), popup.y + 1));
 
             frame.render_widget(input, popup);
 
             // Cursor goes inside the box
-            frame.set_cursor_position((popup.x + 1 + self.search_query.len() as u16, popup.y + 1));
+            frame
+                .set_cursor_position((popup.x + 1 + (self.search_query.len() as u16), popup.y + 1));
         }
     }
 
     /// Helper method to toggle between name and tag
     fn toggle_search(&mut self) {
         match self.search_target {
-            SearchTarget::Name => self.search_target = SearchTarget::Tag,
-            SearchTarget::Tag => self.search_target = SearchTarget::Name,
+            SearchTarget::Name => {
+                self.search_target = SearchTarget::Tag;
+            }
+            SearchTarget::Tag => {
+                self.search_target = SearchTarget::Name;
+            }
         }
     }
 
@@ -285,7 +298,9 @@ impl App {
         if key_event.kind == KeyEventKind::Press {
             if self.is_searching {
                 match key_event.code {
-                    KeyCode::Esc => self.is_searching = false,
+                    KeyCode::Esc => {
+                        self.is_searching = false;
+                    }
                     KeyCode::Enter => {
                         self.is_searching = false;
                     }
@@ -305,8 +320,12 @@ impl App {
                 }
             } else {
                 match key_event.code {
-                    KeyCode::Char('q') => self.exit = true,
-                    KeyCode::Char('/') => self.is_searching = true,
+                    KeyCode::Char('q') => {
+                        self.exit = true;
+                    }
+                    KeyCode::Char('/') => {
+                        self.is_searching = true;
+                    }
                     KeyCode::Up => self.previous(),
                     KeyCode::Down => self.next(),
                     _ => {}
