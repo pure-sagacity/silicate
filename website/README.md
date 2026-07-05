@@ -1,5 +1,6 @@
-# bun-react-tailwind-shadcn-template
+# Silicate website
 
+Website for the Silicate password manager (Bun + React + Tailwind).
 To install dependencies:
 
 ```bash
