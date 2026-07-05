@@ -1,4 +1,5 @@
 const PASSWORD_DIRECTORY: &str = ".silicate/";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use clap::{Parser, Subcommand};
 use colored::*;
@@ -18,9 +19,13 @@ mod tui;
     version,
     about = "A simple command-line password manager."
 )]
+#[command(disable_version_flag = true)]
 struct CLI {
     #[clap(subcommand)]
     command: Option<Command>,
+
+    #[clap(long, short = 'v')]
+    version: bool,
 }
 #[derive(Subcommand)]
 enum Command {
@@ -59,6 +64,7 @@ enum Command {
     Generate {
         website: Option<String>,
 
+        #[clap(long = "no-symbols")]
         #[clap(long, short = 't')]
         tag: Option<String>,
 
@@ -121,7 +127,9 @@ enum TagCommand {
 fn get_password(prompt: &str) -> String {
     loop {
         match prompt_password_with_config(prompt, config()) {
-            Ok(p) => break p,
+            Ok(p) => {
+                break p;
+            }
             Err(e) => {
                 println!("Error reading password: {}", e);
                 write_to_logs(&format!("Error reading password for key derivation: {}", e));
@@ -136,7 +144,9 @@ fn create_dir() {
         std::env::var("HOME").unwrap(),
         PASSWORD_DIRECTORY
     )) {
-        Ok(_) => return,
+        Ok(_) => {
+            return;
+        }
         Err(e) => {
             println!(
                 "Failed to create password directory: {}/{}",
@@ -201,7 +211,12 @@ fn write_init_timestamp() -> chrono::DateTime<chrono::Utc> {
     match fs::write(config_dir() + "init_timestamp.txt", time_init.to_rfc3339()) {
         Ok(_) => (),
         Err(e) => {
-            println!("{}", format!("Failed to write initialization timestamp: {}. Check log file (/tmp/silicate.log) for more information.", e).red().dimmed());
+            println!(
+                "{}",
+                format!("Failed to write initialization timestamp: {}. Check log file (/tmp/silicate.log) for more information.", e)
+                    .red()
+                    .dimmed()
+            );
             write_to_logs(&format!("Failed to write initialization timestamp: {}", e));
         }
     }
@@ -270,6 +285,15 @@ fn get_key() -> Vec<u8> {
 fn main() {
     let cli = CLI::parse();
     let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+
+    if cli.version {
+        let tagline = format!("Silicate -- a simple password manager, built for speed.")
+            .to_string()
+            .green();
+        let info = format!("Version: {} - production build", VERSION).dimmed();
+        println!("{}\n{}", tagline, info);
+        process::exit(0);
+    }
 
     if !fs::exists(config_dir()).unwrap_or(false) {
         println!(
@@ -394,7 +418,12 @@ fn main() {
                     let mut clipboard = match arboard::Clipboard::new() {
                         Ok(c) => c,
                         Err(e) => {
-                            println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to access clipboard. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to access clipboard: {}", e));
                             return;
                         }
@@ -402,7 +431,12 @@ fn main() {
                     match clipboard.set_text(password) {
                         Ok(_) => (),
                         Err(e) => {
-                            println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to copy password to clipboard: {}", e));
                             return;
                         }
@@ -457,10 +491,9 @@ fn main() {
                                 Ok(_) => (),
                                 Err(e) => {
                                     println!(
-                                        "{}",
-                                        format!("Failed to delete existing file during initialization: {}", e)
-                                            .red()
-                                    );
+                                            "{}",
+                                            format!("Failed to delete existing file during initialization: {}", e).red()
+                                        );
                                     write_to_logs(&format!(
                                         "Failed to delete existing file during initialization: {}",
                                         e
@@ -505,7 +538,12 @@ fn main() {
                     let (_, salt) = match generate_fallback_key(&password) {
                         Ok((_, s)) => ((), s),
                         Err(e) => {
-                            println!("{}", format!("Failed to generate fallback key, please check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to generate fallback key, please check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to generate fallback key: {}", e));
                             return;
                         }
@@ -527,7 +565,10 @@ fn main() {
                 tag: option_tag,
             } => {
                 if !check_fzf_installed() {
-                    let msg = "fzf is not installed or not found in PATH. Please install fzf to use the search feature.".to_string().red();
+                    let msg =
+                            "fzf is not installed or not found in PATH. Please install fzf to use the search feature."
+                                .to_string()
+                                .red();
                     println!("{}", msg);
                     write_to_logs("fzf not found during search command.");
                     return;
@@ -536,11 +577,11 @@ fn main() {
                 match silicate::search_password(&config_dir(), option_tag) {
                     Ok(Some(selection)) => {
                         let key = get_key();
-                        let data = if let Some(tag) = option_tag {
+                        let data = (if let Some(tag) = option_tag {
                             fs::read(format!("{}{}-{}.bin", config_dir(), selection, tag))
                         } else {
                             fs::read(format!("{}{}.bin", config_dir(), selection))
-                        }
+                        })
                         .unwrap();
                         let (nonce_bytes, cipher_bytes) = data.split_at(12);
                         let password = silicate::decrypt_passwd(
@@ -558,7 +599,12 @@ fn main() {
                             let mut clipboard = match arboard::Clipboard::new() {
                                 Ok(c) => c,
                                 Err(e) => {
-                                    println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                    println!(
+                                            "{}",
+                                            format!(
+                                                "Failed to access clipboard. Check log file (/tmp/silicate.log) for more information."
+                                            ).red()
+                                        );
                                     write_to_logs(&format!("Failed to access clipboard: {}", e));
                                     return;
                                 }
@@ -566,7 +612,12 @@ fn main() {
                             match clipboard.set_text(password) {
                                 Ok(_) => (),
                                 Err(e) => {
-                                    println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                    println!(
+                                            "{}",
+                                            format!(
+                                                "Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information."
+                                            ).red()
+                                        );
                                     write_to_logs(&format!(
                                         "Failed to copy password to clipboard: {}",
                                         e
@@ -634,7 +685,12 @@ fn main() {
                         let mut clipboard = match arboard::Clipboard::new() {
                             Ok(c) => c,
                             Err(e) => {
-                                println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                println!(
+                                        "{}",
+                                        format!(
+                                            "Failed to access clipboard. Check log file (/tmp/silicate.log) for more information."
+                                        ).red()
+                                    );
                                 write_to_logs(&format!("Failed to access clipboard: {}", e));
                                 return;
                             }
@@ -642,7 +698,12 @@ fn main() {
                         match clipboard.set_text(password) {
                             Ok(_) => (),
                             Err(e) => {
-                                println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                println!(
+                                        "{}",
+                                        format!(
+                                            "Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information."
+                                        ).red()
+                                    );
                                 write_to_logs(&format!(
                                     "Failed to copy password to clipboard: {}",
                                     e
@@ -669,7 +730,12 @@ fn main() {
                         let mut clipboard = match arboard::Clipboard::new() {
                             Ok(c) => c,
                             Err(e) => {
-                                println!("{}", format!("Failed to access clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                println!(
+                                        "{}",
+                                        format!(
+                                            "Failed to access clipboard. Check log file (/tmp/silicate.log) for more information."
+                                        ).red()
+                                    );
                                 write_to_logs(&format!("Failed to access clipboard: {}", e));
                                 return;
                             }
@@ -677,7 +743,12 @@ fn main() {
                         match clipboard.set_text(password) {
                             Ok(_) => (),
                             Err(e) => {
-                                println!("{}", format!("Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information.").red());
+                                println!(
+                                        "{}",
+                                        format!(
+                                            "Failed to copy password to clipboard. Check log file (/tmp/silicate.log) for more information."
+                                        ).red()
+                                    );
                                 write_to_logs(&format!(
                                     "Failed to copy password to clipboard: {}",
                                     e
@@ -688,7 +759,10 @@ fn main() {
 
                         println!("{}", "Generated password copied to clipboard.".green());
 
-                        println!("{}", "To show the generated password again, use `silicate generate --display`".dimmed());
+                        println!(
+                                "{}",
+                                "To show the generated password again, use `silicate generate --display`".dimmed()
+                            );
                     }
                 }
             }
@@ -696,7 +770,13 @@ fn main() {
                 let file_path_option = match find_password_file(&config_dir(), website) {
                     Ok(path) => path,
                     Err(e) => {
-                        println!("{}", format!("Error finding password file for '{}': check log file (/tmp/silicate.log).", website.italic()).red());
+                        println!(
+                                "{}",
+                                format!(
+                                    "Error finding password file for '{}': check log file (/tmp/silicate.log).",
+                                    website.italic()
+                                ).red()
+                            );
                         write_to_logs(&format!(
                             "Error finding password file for '{}': {}",
                             website, e
@@ -712,7 +792,12 @@ fn main() {
                     let key: &[u8; 32] = match key_bytes.try_into() {
                         Ok(k) => k,
                         Err(e) => {
-                            println!("{}", format!("Error occurred while getting key. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while getting key. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while processing the key: {}",
                                 e
@@ -728,7 +813,12 @@ fn main() {
                     let data = match fs::read(format!("{}{}.bin", config_dir(), path)) {
                         Ok(d) => d,
                         Err(e) => {
-                            println!("{}", format!("Error occurred while reading the existing password. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while reading the existing password. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while reading the existing password: {}",
                                 e
@@ -745,7 +835,12 @@ fn main() {
                     ) {
                         Ok(p) => p,
                         Err(e) => {
-                            println!("{}", format!("Error occurred while decrypting the existing password. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while decrypting the existing password. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while decrypting the existing password: {}",
                                 e
@@ -757,7 +852,12 @@ fn main() {
                     match fs::write(&new_file, old_password) {
                         Ok(_) => (),
                         Err(e) => {
-                            println!("{}", format!("Error occurred while writing to temporary file. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while writing to temporary file. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while writing to temporary file: {}",
                                 e
@@ -769,7 +869,12 @@ fn main() {
                     let status = match std::process::Command::new(editor).arg(&new_file).status() {
                         Ok(s) => s,
                         Err(e) => {
-                            println!("{}", format!("Error occurred while opening the editor. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while opening the editor. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while opening the editor: {}",
                                 e
@@ -779,7 +884,12 @@ fn main() {
                     };
 
                     if !status.success() {
-                        println!("{}", format!("Editor exited with an error. Check log file (/tmp/silicate.log) for more information.").red());
+                        println!(
+                                "{}",
+                                format!(
+                                    "Editor exited with an error. Check log file (/tmp/silicate.log) for more information."
+                                ).red()
+                            );
                         write_to_logs(&format!(
                             "Editor exited with an error during password update: {}",
                             status
@@ -790,7 +900,12 @@ fn main() {
                     let new_password = match fs::read_to_string(&new_file) {
                         Ok(p) => p.trim().to_string(),
                         Err(e) => {
-                            println!("{}", format!("Error occurred while reading the updated password. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while reading the updated password. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while reading the updated password: {}",
                                 e
@@ -803,7 +918,12 @@ fn main() {
                     match fs::remove_file(&new_file) {
                         Ok(_) => (),
                         Err(e) => {
-                            println!("{}", format!("Error occurred while deleting the temporary file. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while deleting the temporary file. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while deleting the temporary file: {}",
                                 e
@@ -817,7 +937,12 @@ fn main() {
                     ) {
                         Ok((c, n)) => (c, n),
                         Err(e) => {
-                            println!("{}", format!("Error occurred while encrypting the new password. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while encrypting the new password. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while encrypting the new password: {}",
                                 e
@@ -834,7 +959,12 @@ fn main() {
                     ) {
                         Ok(_) => (),
                         Err(e) => {
-                            println!("{}", format!("Error occurred while writing the updated password to disk. Check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Error occurred while writing the updated password to disk. Check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Error occurred while writing the updated password to disk: {}",
                                 e
@@ -858,7 +988,12 @@ fn main() {
                     let passwords = match list_passwords(&config_dir()) {
                         Ok(p) => p,
                         Err(e) => {
-                            println!("{}", format!("Failed to list passwords for export. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to list passwords for export. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to list passwords for export: {}", e));
                             return;
                         }
@@ -867,7 +1002,12 @@ fn main() {
                     let secrets = match json::get_secrets(&config_dir(), passwords) {
                         Ok(s) => s,
                         Err(e) => {
-                            println!("{}", format!("Failed to get secrets from passwords. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to get secrets from passwords. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to get secrets from passwords: {}", e));
                             return;
                         }
@@ -876,7 +1016,12 @@ fn main() {
                     match json::export_secrets(secrets, &file_path) {
                         Ok(()) => (),
                         Err(e) => {
-                            println!("{}", format!("Failed to export secrets to JSON file. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to export secrets to JSON file. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to export secrets to JSON file: {}", e));
                             return;
                         }
@@ -893,7 +1038,12 @@ fn main() {
                     let secrets = match json::import_secrets(file_path.to_string()) {
                         Ok(s) => s,
                         Err(e) => {
-                            println!("{}", format!("Failed to import secrets from JSON file. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to import secrets from JSON file. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!(
                                 "Failed to import secrets from JSON file: {}",
                                 e
@@ -905,7 +1055,12 @@ fn main() {
                     match json::write_secrets(&config_dir(), secrets) {
                         Ok(()) => println!("Secrets imported successfully."),
                         Err(e) => {
-                            println!("{}", format!("Failed to write secrets. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to write secrets. Check log file (/tmp/silicate.log) for more information."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to write secrets: {}", e));
                             return;
                         }
@@ -936,7 +1091,12 @@ fn main() {
                             .green()
                         ),
                         Err(e) => {
-                            println!("{}", format!("Failed to rename password file, check log file (/tmp/silicate.log).").red());
+                            println!(
+                                    "{}",
+                                    format!(
+                                        "Failed to rename password file, check log file (/tmp/silicate.log)."
+                                    ).red()
+                                );
                             write_to_logs(&format!("Failed to rename password file: {}", e));
                         }
                     };
@@ -947,7 +1107,12 @@ fn main() {
                     let tags = match silicate::list_tags(&config_dir()) {
                         Ok(t) => t,
                         Err(e) => {
-                            println!("{}", format!("Failed to list tags. Check log file (/tmp/silicate.log) for more information.").red());
+                            println!(
+                                        "{}",
+                                        format!(
+                                            "Failed to list tags. Check log file (/tmp/silicate.log) for more information."
+                                        ).red()
+                                    );
                             write_to_logs(&format!("Failed to list tags: {}", e));
                             return;
                         }
@@ -1011,7 +1176,12 @@ fn main() {
                 let stats = match silicate::get_stats(&config_dir()) {
                     Ok(s) => s,
                     Err(e) => {
-                        println!("{}", format!("Failed to get stats. Check log file (/tmp/silicate.log) for more information.").red());
+                        println!(
+                                "{}",
+                                format!(
+                                    "Failed to get stats. Check log file (/tmp/silicate.log) for more information."
+                                ).red()
+                            );
                         write_to_logs(&format!("Failed to get stats: {}", e));
                         return;
                     }

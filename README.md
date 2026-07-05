@@ -16,17 +16,47 @@ It stores encrypted secrets locally, supports keyring-based key storage when ava
 
 ## Installation
 
-Build the project with Cargo:
+### Nix
+
+Add the inputs to your flake.nix
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "nixpkgs/nixos-unstable";
+
+    silicate = {
+      url = "git+https://github.com/pure-sagacity/silicate";
+
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+}
+```
+
+### Cargo
 
 ```bash
+cargo install silicate
+```
+
+### Manual
+
+> Silicate is based on Rust, so you'll need to grab a rust installer. If you'd like, you can also use `devenv shell`, which will give you all the tools needed for compilation.
+
+```bash
+git clone https://github.com/pure-sagacity/silicate
+cd silicate/
 cargo build --release
+./target/release/silicate --version
 ```
 
 ## Usage
 
 ```bash
 silicate init
-silicate insert github
+silicate insert apple
+silicate insert github -t work
 silicate show github
 silicate search
 silicate generate github --length 16
