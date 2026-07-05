@@ -53,6 +53,13 @@ impl App {
     }
 
     pub fn next(&mut self) {
+        let filtered_len = self.filtered_entries().len();
+
+        if filtered_len == 0 {
+            self.state.select(None);
+            return;
+        }
+
         let selected = self.state.selected().unwrap_or(0);
 
         let next = if selected >= self.filtered_entries().len() - 1 {
