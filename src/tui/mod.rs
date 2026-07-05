@@ -92,24 +92,18 @@ impl App {
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.exit {
-            let input = match crossterm::event::read() {
-                Ok(k) => k,
-                Err(e) => {
-                    let msg = format!("Failed to read TUI input: {e}").red();
-                    println!("{msg}");
-                    process::exit(1);
-                }
-            };
+            terminal.draw(|frame| self.draw(frame))?;
 
-            //match input {
-            //    Key(key_event) => self.handle_key(key_event)?,
-            //    _ => {}
-            //}
+            let input = crossterm::event::read().map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Failed to read TUI input: {e}"),
+                )
+            })?;
 
             if let Key(key_event) = input {
                 self.handle_key(key_event)?;
             }
-            terminal.draw(|frame| self.draw(frame))?;
         }
 
         Ok(())
