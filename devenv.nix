@@ -1,8 +1,15 @@
 {
+  pkgs,
   ...
 }:
 
 {
+  profiles = {
+    bun.module = {
+      packages = [ pkgs.bun ];
+    };
+  };
+
   languages.rust = {
     enable = true;
     lsp.enable = true;
