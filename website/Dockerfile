@@ -1,7 +1,7 @@
 FROM oven/bun:1 AS build
 WORKDIR /app
 
-COPY package.json bun.lockb bunfig.toml ./
+COPY package.json bunfig.toml ./
 RUN bun install
 
 COPY . .
