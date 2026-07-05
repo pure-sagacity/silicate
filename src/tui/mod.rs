@@ -233,12 +233,6 @@ impl App {
                 .block(Block::default().title(" Search ").borders(Borders::ALL))
                 .alignment(Alignment::Left);
 
-            frame.render_widget(&input, popup);
-
-            // Pin the cursor strictly to the query string line (top row of popup payload area)
-            frame
-                .set_cursor_position((popup.x + 1 + (self.search_query.len() as u16), popup.y + 1));
-
             frame.render_widget(input, popup);
 
             // Cursor goes inside the box
