@@ -1,31 +1,3 @@
-[package]
-name = "silicate"
-version = "1.1.0"
-edition = "2024"
-description = "A simplistic password manager, built in Rust."
-license = "MIT"
-repository = "https://github.com/pure-sagacity/silicate"
-readme = "README.md"
-keywords = ["password", "manager", "cli", "tool", "encryption"]
-
-[[bin]]
-name = "silicate"
-path = "./src/main.rs"
-
-[dependencies]
-rand_core = "0.10.1"
-aes-gcm = "0.10.3"
-tokio = { version = "1.52.3", features = ["full"] }
-argon2 = "0.5.3"
-hex = "0.4.3"
-keyring = "4.1.1"
-clap = { version = "4.0.32", features = ["derive"] }
-rpassword = "7.5.4"
-arboard = "3.6.1"
-colored = "3.1.1"
-which = "8.0.4"
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.96"
-chrono = "0.4.45"
-ratatui = "0.30.2"
-crossterm = "0.29.0"
+[workspace]
+members = ["crates/*"]
+resolver = "3"
