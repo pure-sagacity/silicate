@@ -13,14 +13,14 @@ name = "silicate"
 path = "./src/main.rs"
 
 [dependencies]
+serde = { version = "1.0.152", features = ["derive"] }
 clap = { version = "4.0.32", features = ["derive"] }
+silicate-core = { path = "../core" }
+serde_json = "1.0.96"
+crossterm = "0.29.0"
 rpassword = "7.5.4"
+ratatui = "0.30.2"
+chrono = "0.4.45"
 arboard = "3.6.1"
 colored = "3.1.1"
 hex = "0.4.3"
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.96"
-chrono = "0.4.45"
-ratatui = "0.30.2"
-crossterm = "0.29.0"
-silicate-core = { path = "../core" }
