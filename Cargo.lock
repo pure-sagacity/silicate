@@ -1451,6 +1451,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-host"
+version = "1.1.0"
+dependencies = [
+ "aes-gcm",
+ "arboard",
+ "argon2",
+ "chrono",
+ "clap",
+ "colored",
+ "crossterm",
+ "hex",
+ "keyring",
+ "rand_core 0.10.1",
+ "ratatui",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "which",
+]
+
+[[package]]
 name = "nix"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
