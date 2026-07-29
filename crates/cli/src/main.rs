@@ -4,7 +4,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 use clap::{Parser, Subcommand};
 use colored::*;
 use rpassword::prompt_password_with_config;
-use silicate::*;
+use silicate_core::*;
 use std::process;
 use std::string::ToString;
 use std::{
@@ -357,7 +357,7 @@ fn main() {
 
                 if input.trim().to_lowercase() == "y" {
                     // 1. Scan the directory using your existing helper to look for a matching name
-                    let passwords = silicate::list_passwords(&config_dir());
+                    let passwords = silicate_core::list_passwords(&config_dir());
 
                     // Find if any entry matches 'website' or starts with 'website-'
                     let target_file = passwords.unwrap().into_iter().find(|filename| {
@@ -404,7 +404,7 @@ fn main() {
 
                 let data = fs::read(format!("{}{}.bin", config_dir(), website)).unwrap();
                 let (nonce_bytes, cipher_bytes) = data.split_at(12);
-                let password = silicate::decrypt_passwd(
+                let password = silicate_core::decrypt_passwd(
                     &key.try_into().unwrap(),
                     cipher_bytes.to_vec(),
                     nonce_bytes.try_into().unwrap(),
@@ -574,7 +574,7 @@ fn main() {
                     return;
                 }
 
-                match silicate::search_password(&config_dir(), option_tag) {
+                match silicate_core::search_password(&config_dir(), option_tag) {
                     Ok(Some(selection)) => {
                         let key = get_key();
                         let data = (if let Some(tag) = option_tag {
@@ -584,7 +584,7 @@ fn main() {
                         })
                         .unwrap();
                         let (nonce_bytes, cipher_bytes) = data.split_at(12);
-                        let password = silicate::decrypt_passwd(
+                        let password = silicate_core::decrypt_passwd(
                             &key.try_into().unwrap(),
                             cipher_bytes.to_vec(),
                             nonce_bytes.try_into().unwrap(),
@@ -654,7 +654,7 @@ fn main() {
 
                 let length = length.unwrap_or(16); // Default length of 16 if not specified
 
-                let password = silicate::generate_password(length, symbols);
+                let password = silicate_core::generate_password(length, symbols);
 
                 if let Some(website) = website {
                     let key = get_key();
@@ -828,7 +828,7 @@ fn main() {
                     };
 
                     let (nonce_bytes, cipher_bytes) = data.split_at(12);
-                    let old_password = match silicate::decrypt_passwd(
+                    let old_password = match silicate_core::decrypt_passwd(
                         key,
                         cipher_bytes.to_vec(),
                         nonce_bytes.try_into().unwrap(),
@@ -1104,7 +1104,7 @@ fn main() {
             }
             Command::Tag { command } => match command {
                 TagCommand::List {} => {
-                    let tags = match silicate::list_tags(&config_dir()) {
+                    let tags = match silicate_core::list_tags(&config_dir()) {
                         Ok(t) => t,
                         Err(e) => {
                             println!(
@@ -1130,7 +1130,8 @@ fn main() {
             },
             Command::List { tag } => {
                 let websites =
-                    silicate::list_passwords(&config_dir()).expect("Failed to list passwords.");
+                    silicate_core::list_passwords(&config_dir())
+                        .expect("Failed to list passwords.");
                 if websites.is_empty() {
                     println!("{}", "No passwords stored yet.".yellow());
                 } else {
@@ -1173,7 +1174,7 @@ fn main() {
                 }
             }
             Command::Stats {} => {
-                let stats = match silicate::get_stats(&config_dir()) {
+                let stats = match silicate_core::get_stats(&config_dir()) {
                     Ok(s) => s,
                     Err(e) => {
                         println!(

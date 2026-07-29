@@ -2363,19 +2363,29 @@ dependencies = [
 name = "silicate"
 version = "1.1.0"
 dependencies = [
- "aes-gcm",
  "arboard",
- "argon2",
  "chrono",
  "clap",
  "colored",
  "crossterm",
  "hex",
- "keyring",
- "rand_core 0.10.1",
  "ratatui",
  "rpassword",
  "serde",
+ "serde_json",
+ "silicate-core",
+]
+
+[[package]]
+name = "silicate-core"
+version = "1.1.0"
+dependencies = [
+ "aes-gcm",
+ "argon2",
+ "chrono",
+ "colored",
+ "hex",
+ "keyring",
  "serde_json",
  "which",
 ]

@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-use silicate::SilicateError;
-
-use crate::find_password_file;
+use silicate_core::{SilicateError, find_password_file};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Secret {

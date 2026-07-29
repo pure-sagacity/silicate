@@ -19,7 +19,7 @@ use ratatui::{
         Wrap,
     },
 };
-use silicate::SilicateError;
+use silicate_core::SilicateError;
 
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     Rect {
@@ -273,7 +273,7 @@ impl App {
 
         let (nonce_bytes, cipher_bytes) = data.split_at(12);
 
-        let decrypted = silicate::decrypt_passwd(
+        let decrypted = silicate_core::decrypt_passwd(
             &self.key,
             cipher_bytes.to_vec(),
             nonce_bytes.try_into()?

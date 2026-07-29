@@ -15,7 +15,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Build
-        run: cargo build -p silicate --verbose
+        run: cargo build -p silicate
       - name: Run tests
-        run: cargo test -p silicate --verbose
+        run: cargo test -p silicate-core
